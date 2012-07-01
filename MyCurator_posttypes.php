@@ -469,10 +469,10 @@ function mct_ai_addtrain(){
     
     // set up the training keys
     $retstr = '';
-    $train_base = plugins_url().'/MyCurator/MyCurator_train.php';
-    $imggood = plugins_url().'/MyCurator/thumbs_up.png';
-    $imgbad = plugins_url().'/MyCurator/thumbs_down.png';
-    $imgtrash = plugins_url().'/MyCurator/trash_icon.png';
+    $train_base = plugins_url('MyCurator_train.php',__FILE__);
+    $imggood = plugins_url('thumbs_up.png',__FILE__);
+    $imgbad = plugins_url('thumbs_down.png',__FILE__);
+    $imgtrash = plugins_url('trash_icon.png', __FILE__);
     if ($tgt){
         $train_uri = add_query_arg(array('good' => strval($post->ID), 'move' => strval($post->ID)), $train_base);
         $train_uri = wp_nonce_url($train_uri, 'mct_ai_train_good'.$post->ID);

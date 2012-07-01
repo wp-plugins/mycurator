@@ -106,7 +106,7 @@ function mct_ai_process_topic($topic){
                 if ($new_page) {
                     $page = $post_arr['page'];
                     //update the style sheet with the local copy
-                    $page = str_replace("mct_ai_local_style",plugins_url().'/MyCurator/MyCurator_page.css', $page);
+                    $page = str_replace("mct_ai_local_style",plugins_url('MyCurator_page.css',__FILE__), $page);
                     mct_ai_setPRpage($page, $topic, $post_arr);  //Need to update posts read if this is a new page
                 }
                 //Post the new entry if good response

@@ -93,7 +93,7 @@ function mct_ai_new_proc(){
         global $blog_id;
         $url = plugins_url('MyCurator_process_page.php',__FILE__).'/?blogid='.strval($blog_id);
     } else {
-        $url = plugins_url().'/MyCurator/MyCurator_process_page.php';
+        $url = plugins_url('MyCurator_process_page.php',__FILE__);
     }
 
     $ch = curl_init();

@@ -4,7 +4,7 @@ Donate link:
 Tags: content, creation, rss, instapaper
 Requires at least: 3.1
 Tested up to: 3.4
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -69,6 +69,9 @@ cloud services.
 2. Topic page tells MyCurator what to look for in your sources.
 
 == Changelog ==
+
+= 1.0.6 =
+* A few more Changes to support WordPress plugin repository
 
 = 1.0.5 =
 * Changes to support WordPress plugin repository

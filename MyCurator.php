@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -281,8 +281,8 @@ function mct_ai_vercheck() {
     //Display version of install and whether requirements met
     
     //get image links
-    $imggood = plugins_url().'/MyCurator/thumbs_up.png';
-    $imgbad = plugins_url().'/MyCurator/thumbs_down.png';
+    $imggood = plugins_url('thumbs_up.png',__FILE__);
+    $imgbad = plugins_url('thumbs_down.png',__FILE__);
     
     echo "<ul>";
     if (function_exists('curl_init')){
@@ -1187,7 +1187,7 @@ function mct_ai_run_mycurator(){
             $url = preg_replace($pattern,"\\1\\3",$url); //remove blog path
         }
     } else {
-        $url = plugins_url().'/MyCurator/MyCurator_process_page.php';
+        $url = plugins_url('MyCurator_process_page.php',__FILE__);
     }
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Cron Starting MyCurator', $url);
     $ch = curl_init();
