@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
