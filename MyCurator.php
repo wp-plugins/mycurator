@@ -228,6 +228,7 @@ function mct_ai_firstpage() {
                                         <div class="inside">
                                                 <ul>
                                                         <li>- <a href="http://www.target-info.com/training-videos/" target="_blank" >Link to MyCurator Training Videos</a></li>
+                                                        <li>- MyCurator <a href="http://wordpress.org/support/plugin/mycurator" target="_blank" />support forum</a></li>
                                                         <?php if (empty($mct_ai_optarray['ai_cloud_token'])) { ?>
                                                         <li>- MyCurator API Key: <a href="http://www.target-info.com/api-key" />Get API Key</a></li><?php } ?>
                                                         <li>- <a href="http://www.target-info.com/myaccount/" target="_blank" >My Account</a> at Target Info</li>
@@ -673,7 +674,8 @@ function mct_ai_optionpage() {
             'ai_train_days' => absint($_POST['ai_train_days']),
             'ai_short_linkpg' => absint($_POST['ai_short_linkpg']),
             'ai_save_thumb' => absint($_POST['ai_save_thumb']),
-            'ai_cron_period' => $_POST['ai_cron_period']
+            'ai_cron_period' => $_POST['ai_cron_period'],
+            'ai_keep_good_here' => absint($_POST['ai_keep_good_here'])
         );
         update_option('mct_ai_options',$opt_update);
         $msg = 'Options have been updated';
@@ -736,7 +738,12 @@ function mct_ai_optionpage() {
                     <input name="ai_cron_period" type="radio" value="12" <?php checked('12', $cur_options['ai_cron_period']); ?>  /> 12
                     <input name="ai_cron_period" type="radio" value="24" <?php checked('24', $cur_options['ai_cron_period']); ?>  /> 24 Hours
                 </td>    
-            </tr>        
+            </tr> 
+            <tr>
+                <th scope="row">Keep good trainees on Training Page?</th>
+                <td><input name="ai_keep_good_here" type="checkbox" id="ai_keep_good_here" value="1" <?php checked('1', $cur_options['ai_keep_good_here']); ?>  />
+                <span>&nbsp;<em>Check for manual curation, use [Make Live] to Post on blog.</em></span></td>    
+            </tr>
         </table>
             <?php wp_nonce_field('mct_ai_optionspg','optionset'); ?>
         <div class="submit">

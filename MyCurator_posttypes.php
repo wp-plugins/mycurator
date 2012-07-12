@@ -446,7 +446,7 @@ function is_trainee($postid){
 
 function mct_ai_addtrain(){
     //This function sets the training keys and trash for training and live posts
-    global $post;
+    global $post, $mct_ai_optarray;
     //Does user have edit authority for this post
     $post_type_object = get_post_type_object( $post->post_type );
     if ( !$post_type_object )
@@ -454,9 +454,6 @@ function mct_ai_addtrain(){
 
     if ( !current_user_can( $post_type_object->cap->edit_post, $post->ID ) )
             return '';
-    //Is this post from MyCurator?
-    if (is_trainee($post->ID) != 'Yes') return '';
-    
     //see if we have a topic taxonomy for this post
     // Get the topic name
     $terms = get_the_terms( $post->ID, 'topic' );
@@ -466,6 +463,9 @@ function mct_ai_addtrain(){
     if ($post->post_type == 'target_ai'){
         $tgt = true;
     }
+    //Is this post from MyCurator?
+    $istrain = is_trainee($post->ID);
+    if ($istrain == 'No') return '';
     
     // set up the training keys
     $retstr = '';
@@ -473,7 +473,18 @@ function mct_ai_addtrain(){
     $imggood = plugins_url('thumbs_up.png',__FILE__);
     $imgbad = plugins_url('thumbs_down.png',__FILE__);
     $imgtrash = plugins_url('trash_icon.png', __FILE__);
-    if ($tgt){
+    
+    //Trained, but on training page, so just put out make live
+    if ($istrain != 'Yes' && $tgt) {
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.get_delete_post_link($post->ID).'" ><img src="'.$imgtrash.'" ></img></a>';
+        $move_uri = add_query_arg(array('move' => strval($post->ID)), $train_base);
+        $move_uri = wp_nonce_url($move_uri, 'mct_ai_move'.$post->ID);
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.$move_uri.'" >[Make Live]</a>';
+        return $retstr;
+    }
+    if ($istrain != 'Yes') return '';
+    
+    if ($tgt && !$mct_ai_optarray['ai_keep_good_here']){
         $train_uri = add_query_arg(array('good' => strval($post->ID), 'move' => strval($post->ID)), $train_base);
         $train_uri = wp_nonce_url($train_uri, 'mct_ai_train_good'.$post->ID);
         $retstr .= '&nbsp; <a class="mct-ai-link" href="'.$train_uri.'" ><img src="'.$imggood.'" ></img></a>'; 
