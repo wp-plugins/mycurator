@@ -1,10 +1,10 @@
 === MyCurator ===
 Contributors: mtilly
 Donate link: 
-Tags: content, creation, rss, instapaper
+Tags: content, curation, marketing, rss, instapaper, feed, feeds
 Requires at least: 3.1
 Tested up to: 3.4
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -13,8 +13,11 @@ your feeds, alerts and blogs, saving hours every day.
 
 == Description ==
 
-MyCurator supports your content curation process by using AI techniques to weed out 90% or more of the articles in 
-your feeds, alerts and blogs, saving you hours every day. 
+Like a personal assistant, MyCurator uses AI software learning techniques to weed out 90% or more 
+of the articles in your feeds, alerts and blogs, focusing on topics you've trained it to follow. 
+This can save you hours every day. You can choose to automatically have the good articles posted 
+to a specific category on your blog. Or you may choose to manually curate the best insights from 
+the articles into your own blog posts.
 
 MyCurator started as a hosted offering for businesses who provided targeted articles and insights to their 
 customers to drive engagement and customer retention.  As a Wordpress plugin, MyCurator connects to the same 
@@ -31,7 +34,7 @@ on your blog.
 
 MyCurator is free for individuals, bloggers and non-profits, but you will have to obtain an API Key to access the 
 cloud services.  For businesses, those promoting products and higher volume users, low priced monthly plans are 
-available.  Visit http://www.target-info.com/pricing for more information.
+available.  Visit http://www.target-info.com/ for more information.
 
 == Installation ==
 
@@ -69,6 +72,11 @@ cloud services.
 2. Topic page tells MyCurator what to look for in your sources.
 
 == Changelog ==
+
+= 1.0.7 =
+* New option to support manual content curation, which keeps good trained posts on the training page
+* Added link to MyCurator support forum on the wordpress.org site
+* Fix to ensure deletion of saved pages when corresponding post is deleted
 
 = 1.0.6 =
 * A few more Changes to support WordPress plugin repository

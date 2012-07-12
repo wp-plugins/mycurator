@@ -67,6 +67,7 @@ function mct_sl_deletefile($post_id){
     //Hook to remove saved pages from db when post is deleted
     global $wpdb, $ai_sl_pages_tbl;
     // Get the links from the meta data, allow for more than one
+    $newlinks = get_post_meta($post_id,'mct_sl_newurl',true);
     if (!empty($newlinks)){
         foreach ($newlinks as $nlink){
             $pos = preg_match('{/'.MCT_AI_REDIR.'/(.*)$}',$nlink,$matches); 
