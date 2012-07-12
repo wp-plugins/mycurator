@@ -90,4 +90,8 @@ cloud services.
 * Updates to support WordPress 3.4
 * Changes to support themes using query arg hooks
 
+== Upgrade Notice ==
 
+= 1.0.7 =
+Saved pages may not delete when training and live posts are deleted.  You should upgrade to 
+version 1.0.7 to make sure you are not leaving extra pages in your files.
