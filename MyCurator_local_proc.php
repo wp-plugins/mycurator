@@ -245,7 +245,10 @@ function mct_ai_cloudclassify($page,$topic,&$post_arr){
 function mct_ai_callcloud($type,$topic,$postvals){
     //This function calls the cloud service with the token
     global $mct_ai_optarray;
-
+    
+    $ref = home_url();
+    if (is_multisite()) $ref = network_home_url();
+    
     $cloud_data = array(
         'args' => $postvals,
         'token' => $mct_ai_optarray['ai_cloud_token'],
@@ -260,6 +263,7 @@ function mct_ai_callcloud($type,$topic,$postvals){
     // ENABLE HTTP POST
     curl_setopt ($ch, CURLOPT_POST, 1);
     // SET POST FIELD to the content
+    curl_setopt($ch, CURLOPT_REFERER, $ref);
     curl_setopt ($ch, CURLOPT_POSTFIELDS, $cloud_json);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(                                                                          
         'Content-Type: application/json',                                                                                
