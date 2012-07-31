@@ -345,7 +345,11 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     }
     //Set up the content
     mct_ai_getpostcontent($page, $post_arr);
-    $post_content = $post_arr['article'].'<br /><a href="'.$link_redir.'" >Click here to view full article</a>';
+    if ($mct_ai_optarray['ai_show_orig']){
+        $post_content = $post_arr['article'].'<br />'.$post_arr['orig_link'];
+    } else {
+        $post_content = $post_arr['article'].'<br /><a href="'.$link_redir.'" >Click here to view full article</a>';
+    }
     $post_content = apply_filters('mct_ai_postcontent',$post_content);
     // Get an image if we can - 1st match of appropriate size
     $image = '';
@@ -452,7 +456,8 @@ function mct_ai_post_entry($topic, $post_arr, $page){
 
 function mct_ai_getpostcontent($page, &$post_arr){
     //Grab the post content out of the rendered page
-    $excerpt_length = 50;
+    global $mct_ai_optarray;
+    $excerpt_length = $mct_ai_optarray['ai_excerpt'];
     $title = '';
     $article = '';
     //$page has the content, with html, using the format of rendered page, separate sections
@@ -463,7 +468,9 @@ function mct_ai_getpostcontent($page, &$post_arr){
     //Get rid of tags in title
     $title = preg_replace('{<([^>]*)>}',' ',$title);  //remove tags but leave spaces
     $post_arr['title'] = $title;  //save title 
-
+    // Get original URL
+    $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
+    $post_arr['orig_link'] = $matches[1].'> '.$matches[2].'</a>';
     //Now get article content
     $article = preg_replace('@<style[^>]*>[^<]*</style>@i','',$article);  //remove style tags
     $article = preg_replace('{<([^>]*)>}',' ',$article);  //remove tags but leave spaces
@@ -471,6 +478,10 @@ function mct_ai_getpostcontent($page, &$post_arr){
     //Save article snippet
     $excerpt = preg_replace('/\s+/', ' ', $article);  //get rid of extra spaces
     //Get Excerpt words
+    if (!$excerpt_length) {
+        $post_arr['article'] = '';
+        return;  //no excerpt if set to 0
+    }
     $words = explode(' ', $excerpt, $excerpt_length + 1);
     if ( count($words) > $excerpt_length ) {
             array_pop($words);

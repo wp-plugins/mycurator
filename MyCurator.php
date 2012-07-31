@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.0.7
+ * Version: 1.1.0
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -39,6 +39,19 @@ define ('MCT_AI_LOG_PROCESS','PROCESS');
 register_activation_hook(__FILE__, 'mct_ai_activehook');
 //Get options
 $mct_ai_optarray = get_option('mct_ai_options');
+if (empty($mct_ai_optarray)){
+    $mct_ai_optarray = array (
+        'ai_on' => TRUE,
+        'ai_excerpt' => 50,
+        'ai_log_days' => 7,
+        'ai_train_days' => 7
+    );
+    update_option('mct_ai_options',$mct_ai_optarray);
+}
+if (empty($mct_ai_optarray['ai_excerpt'])) { 
+    $mct_ai_optarray['ai_excerpt'] = 50;  //set up for existing installs
+    update_option('mct_ai_options',$mct_ai_optarray);
+}
 //Set up menus
 add_action('admin_menu', 'mct_ai_createmenu');
 //Set up Cron
@@ -71,6 +84,7 @@ function mct_ai_activehook() {
     
     $opt_update = array (
         'ai_on' => TRUE,
+        'ai_excerpt' => 50,
         'ai_log_days' => 7,
         'ai_train_days' => 7
     );
@@ -675,7 +689,10 @@ function mct_ai_optionpage() {
             'ai_short_linkpg' => absint($_POST['ai_short_linkpg']),
             'ai_save_thumb' => absint($_POST['ai_save_thumb']),
             'ai_cron_period' => $_POST['ai_cron_period'],
-            'ai_keep_good_here' => absint($_POST['ai_keep_good_here'])
+            'ai_keep_good_here' => absint($_POST['ai_keep_good_here']),
+            'ai_excerpt' => absint($_POST['ai_excerpt']),
+            'ai_show_orig' => absint($_POST['ai_show_orig']),
+            'ai_edit_makelive' => absint($_POST['ai_edit_makelive']),
         );
         update_option('mct_ai_options',$opt_update);
         $msg = 'Options have been updated';
@@ -740,10 +757,25 @@ function mct_ai_optionpage() {
                 </td>    
             </tr> 
             <tr>
+                <th scope="row">Excerpt length in words:</th>
+                <td><input name="ai_excerpt" type="text" id="ai_excerpt" size ="5" value="<?php echo $cur_options['ai_excerpt']; ?>"  /></td>    
+            </tr>               
+            <tr><th><strong>Manual Curation Settings</strong></th>
+            <td> </td></tr>
+            <tr>
                 <th scope="row">Keep good trainees on Training Page?</th>
                 <td><input name="ai_keep_good_here" type="checkbox" id="ai_keep_good_here" value="1" <?php checked('1', $cur_options['ai_keep_good_here']); ?>  />
-                <span>&nbsp;<em>Check for manual curation, use [Make Live] to Post on blog.</em></span></td>    
+                <span>&nbsp;<em>Use [Make Live] to Post on blog.</em></span></td>    
             </tr>
+            <tr>
+                <th scope="row">Show original article link, not readable page?</th>
+                <td><input name="ai_show_orig" type="checkbox" id="ai_show_orig" value="1" <?php checked('1', $cur_options['ai_show_orig']); ?>  /></td>    
+            </tr>
+            <tr>
+                <th scope="row">Edit post when made live?</th>
+                <td><input name="ai_edit_makelive" type="checkbox" id="ai_edit_makelive" value="1" <?php checked('1', $cur_options['ai_edit_makelive']); ?>  />
+                <span>&nbsp;<em>Will create draft post and display in post editor on [Make Live]</em></span></td>     
+            </tr>        
         </table>
             <?php wp_nonce_field('mct_ai_optionspg','optionset'); ?>
         <div class="submit">

@@ -4,14 +4,20 @@ Donate link:
 Tags: content, curation, marketing, rss, instapaper, feed, feeds
 Requires at least: 3.1
 Tested up to: 3.4
-Stable tag: 1.0.7
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator supports content curation by using AI techniques to weed out 90%+ of the articles in 
-your feeds, alerts and blogs, saving hours every day. 
+MyCurator is a complete content curation platform with a unique AI feed reader that learns to find just the 
+content you want. 
 
 == Description ==
+
+MyCurator is a complete content curation platform for WordPress blogs.  It reads all of the alerts, blogs, 
+and news feeds you want to follow.  Each article found by MyCurator includes the full text and all images 
+as well as the attribution to the original page, right in the WordPress editor.  You can easily 
+grab quotes and images for your curated post, adding your insights and comments, quickly creating 
+newly curated content for your blog.
 
 Like a personal assistant, MyCurator uses AI software learning techniques to weed out 90% or more 
 of the articles in your feeds, alerts and blogs, focusing on topics you've trained it to follow. 
@@ -24,10 +30,12 @@ customers to drive engagement and customer retention.  As a Wordpress plugin, My
 cloud process that powers the hosted business sites.  This allows MyCurator to maintain a low processing overhead 
 on your blog.
 
-* After training, you will typically see only 5 to 10 good articles out of 100 read by MyCurator
-* Training is simple with a click of a thumbs up or thumbs down on each article
-* Works with any RSS source of articles including google alerts, blogs, news feeds even twitter searches
-* Targeted news feeds and twitter searches can be created with MyCurator from within WordPress
+* The full text and all images for each article are available as a meta box in the WordPress post editor.
+* Attribution to the original article is automatically inserted into the curated post.
+* After training, you will typically see only 5 to 10 good articles out of 100 read by MyCurator.
+* Training is simple with a click of a thumbs up or thumbs down on each article.
+* Works with any RSS source of articles including Google alerts, blogs, news feeds even twitter searches.
+* Targeted news feeds and twitter searches can be created with MyCurator from within WordPress.
 * You can choose to automatically have the good articles posted to a specific category on your blog.
 * Or you may choose to manually curate the best insights from the articles into your own blog posts.
 * Each article is saved as a readable page, like Instapaper, using Diffbot technology.
@@ -57,12 +65,12 @@ themes. Optionally, it will try to save an image from the article as the feature
 = Does MyCurator work with Network Sites? =
 
 Yes, MyCurator works with Network sites.  You must have a key for each site.  Enterprise options are available 
-for businesses and larger sites that need many keys.  Visit http://www.target-info.com/pricing for more information.
+for businesses and larger sites that need many keys.  Visit http://www.target-info.com/hosted/ for more information.
 
 = How often does MyCurator read my sources for articles? =
 
 You can set MyCurator to process every 3, 6, 12 or 24 hours, depending on how often new articles are posted to 
-your sources.  Processing happens in the background, with most of the processing occuring off-site using our
+your sources.  Processing happens in the background, with most of the processing off-site using our
 cloud services.
 
 == Screenshots ==
@@ -71,7 +79,16 @@ cloud services.
 
 2. Topic page tells MyCurator what to look for in your sources.
 
+3. New saved page meta box with images in WordPress post editor.
+
 == Changelog ==
+
+= 1.1.0 =
+* Display article full text in WordPress post editor meta box
+* Display all images found in-line in text as well as an images section at bottom of meta box
+* Option to insert link to original page into article posts created by MyCurator
+* Option to set excerpt length for article posts created by MyCurator
+* Option to directly enter the WordPress post editor when making a training post Live
 
 = 1.0.7 =
 * New option to support manual content curation, which keeps good trained posts on the training page
@@ -90,8 +107,3 @@ cloud services.
 * Updates to support WordPress 3.4
 * Changes to support themes using query arg hooks
 
-== Upgrade Notice ==
-
-= 1.0.7 =
-Saved pages may not delete when training and live posts are deleted.  You should upgrade to 
-version 1.0.7 to make sure you are not leaving extra pages in your files.
