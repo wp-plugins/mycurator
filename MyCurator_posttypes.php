@@ -21,6 +21,7 @@ add_action('add_meta_boxes','mct_ai_relmeta');  //for posts
 add_action('add_meta_boxes','mct_ai_relmetatarget'); //For targets
 //the content filter to add training links
 add_filter('the_content', 'mct_ai_traintags', 20);
+add_filter('the_excerpt', 'mct_ai_traintags', 20);
 
 function mct_ai_register(){
     //Registers custom post type targets
@@ -219,7 +220,7 @@ function target_ai_shortcode(){
     //Displays target_ai post types on a page with this shortcode
     //Very little formatting so it will pick up css from current theme
     
-    global $post, $ai_topic_tbl, $wpdb, $wp_query, $paged;
+    global $post, $ai_topic_tbl, $wpdb, $wp_query, $paged, $blog_id;
     $qtopic = '';
     $qaiclass = '';
     $msg = '';
@@ -279,7 +280,21 @@ function target_ai_shortcode(){
 ?>             
 <!-- post title -->
 <div <?php post_class('fpost') ?> id="post-<?php the_ID(); ?>">
-          <h2><?php the_title(); ?></h2>
+       <?php //Set link to saved page on title
+    $pages = mct_ai_getsavedpageid($post->ID);
+    $page_id = $pages[0];
+       //Set the redirect link
+    if (is_multisite()){
+        if ($blog_id == 1){
+            $link_redir = network_site_url().'blog/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
+        } else {
+            $link_redir = site_url().'/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
+        }
+    } else {
+        $link_redir = site_url().'/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
+    }
+    ?>
+          <h2><?php echo '<a href="'.$link_redir.'" >'.get_the_title().'</a>'; ?></h2>
             <?php echo(get_the_date()); echo ('&nbsp;&middot&nbsp;'); 
             edit_post_link( '[Edit]', '', '');
 
@@ -405,7 +420,15 @@ function mct_ai_traintags($content){
             $pos = stripos($content,$matches[0]);
             $len = strlen($matches[0]);
             $content = substr($content,0,$pos+$len).$trainstr."<br />".substr($content,$pos+$len);
-        } 
+        } else {
+            $pos = stripos($content, "</a></p>");
+            if ($pos) {  //place in final <p> if found since MyCurator puts in just one link
+                $len = strlen($content);
+                $content = substr($content,0,$pos+4)."&nbsp;".$trainstr.substr($content,$pos+4);
+            } else {
+                $content .= "&nbsp;".$trainstr;
+            }
+        }
     }
     return $content;
     
@@ -507,10 +530,22 @@ function mct_ai_addtrain(){
 }
 
 function mct_ai_relmeta(){
-    add_meta_box('mct_ai_metabox','Relevance Data','mct_ai_relmetashow','post','normal','high');
+
+    //Get training page link
+    $pages = get_pages(array('post_status' => 'publish,private'));
+    foreach ($pages as $page) {
+        if (stripos($page->post_content,"MyCurator_training_page") !== false) {
+            $trainpage = get_page_link($page->ID);
+            break;
+        }
+    }
+    
+    $trainpage = '<a href="'.$trainpage.'" />Link to MyCurator Training Page on your site</a>';
+    add_meta_box('mct_ai_metabox','Relevance Data','mct_ai_relmetashow','post','normal','low');
+    add_meta_box('mct_ai_slpage','Saved Page >>'.$trainpage,'mct_ai_showpage','post','normal','high');
 }
 function mct_ai_relmetatarget(){
-    add_meta_box('mct_ai_metabox','Relevance Data','mct_ai_relmetashow','target_ai','normal','high');
+    add_meta_box('mct_ai_metabox','Relevance Data','mct_ai_relmetashow','target_ai','normal','low');
 }
 
 function mct_ai_relmetashow($post){
@@ -524,8 +559,35 @@ function mct_ai_relmetashow($post){
     }
 }
 
+function mct_ai_showpage($post){
+    //Display the saved page in a  meta box for use in curating post
+    //Get saved page id
+    $pages = mct_ai_getsavedpageid($post->ID);
+    if (empty($pages)) return;
+    $page = mct_ai_getsavedpage($pages[0]);
+    //pull out the article text
+    $cnt = preg_match('{<span class="mct-ai-article-content">(.*)}si',$page,$matches);  //don't stop at end of line
+    $article = $matches[1];
+    $article = preg_replace('{</span></div></body></html>}','',$article);
+    //pull out any side images
+    $images = '';
+    $pos = stripos($page,'<div id="box_media">');
+    if ($pos){
+        $images = substr($page,$pos);
+        $pos = stripos($images,'</div>');
+        $images = substr($images,0,$pos+5);
+    }
+    echo $article;
+    if ($images){
+        //quick style
+        echo "<style> #box_media {padding: 5px;} #box_media #side_image {padding: 5px;} </style>";
+        echo "<h3>Images</h3>".$images;
+    }
+  
+}
+
 function mct_ai_linkmeta(){
-    add_meta_box('mct_sl_metabox','Link Replacement for MyCurator','mct_sl_linkmetashow','target_ai','normal','high');
+    add_meta_box('mct_sl_metabox','Link Replacement for MyCurator','mct_sl_linkmetashow','target_ai','normal','low');
 }
 
 //Add the Create News/Twitter menu item

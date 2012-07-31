@@ -56,7 +56,7 @@ if (isset($_GET['bad']) || isset($_GET['good'])){
 wp_redirect($sendback);
 
 function mct_ai_movepost($thepost){
-    global $wpdb, $ai_topic_tbl;
+    global $wpdb, $ai_topic_tbl, $mct_ai_optarray;
     
     //Move a post - change post type from target_ai to post
     //read topic table for this category/tag
@@ -76,7 +76,13 @@ function mct_ai_movepost($thepost){
                 $details['tags_input'] = array($tagterm->name);
             }
             $details['post_type'] = 'post';
+            if ($mct_ai_optarray['ai_edit_makelive']) $details['post_status'] = 'draft';
             wp_update_post($details);
+            if ($mct_ai_optarray['ai_edit_makelive']){
+                $edit_url = get_edit_post_link( $thepost, array('edit' => '&amp;'));
+                wp_redirect($edit_url);
+                exit();
+            }
         }
     }
 }

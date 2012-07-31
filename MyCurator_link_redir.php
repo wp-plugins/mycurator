@@ -82,7 +82,7 @@ function mct_sl_deletefile($post_id){
 
 function mct_sl_linkmeta(){
     // Set up meta box for link replacement data
-    add_meta_box('mct_sl_metabox','Link Replacement for MyCurator','mct_sl_linkmetashow','post','normal','high');
+    add_meta_box('mct_sl_metabox','Link Replacement for MyCurator','mct_sl_linkmetashow','post','normal','low');
 }
 
 function mct_sl_linkmetashow($post){
@@ -97,11 +97,11 @@ function mct_sl_linkmetashow($post){
         ?>
     <tr>
         <td><em>Original Link: </em></td>
-        <td><?php echo $origlinks[$i]; ?></td>
+        <td><?php echo '<a href="'.$origlinks[$i].'" target="_blank">'.$origlinks[$i].'</a>'; ?></td>
     </tr>
     <tr>
         <td><em>New Link: </em></td>
-        <td><?php echo $newlinks[$i]; ?>
+        <td><?php echo '<a href="'.$newlinks[$i].'" target="_blank">'.$newlinks[$i].'</a>'; ?>
     </tr>
     <?php }  //end for loop ?>
   
