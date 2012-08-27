@@ -4,7 +4,7 @@ Donate link:
 Tags: content, curation, marketing, rss, instapaper, feed, feeds
 Requires at least: 3.1
 Tested up to: 3.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -13,10 +13,11 @@ content you want.
 
 == Description ==
 
-MyCurator is a complete content curation platform for WordPress blogs.  It reads all of the alerts, blogs, 
-and news feeds you want to follow.  Each article found by MyCurator includes the full text and all images 
-as well as the attribution to the original page, right in the WordPress editor.  You can easily 
-grab quotes and images for your curated post, adding your insights and comments, quickly creating 
+MyCurator is a complete content curation platform for WordPress blogs.  Rather than make you search for new content,
+MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts. 
+It reads all of the alerts, blogs, and news feeds you want to follow.  Each article found by MyCurator includes 
+the full text and all images as well as the attribution to the original page, right in the WordPress editor.  
+You can easily grab quotes and images for your curated post, adding your insights and comments, quickly creating 
 newly curated content for your blog.
 
 Like a personal assistant, MyCurator uses AI software learning techniques to weed out 90% or more 
@@ -27,8 +28,8 @@ the articles into your own blog posts.
 
 MyCurator started as a hosted offering for businesses who provided targeted articles and insights to their 
 customers to drive engagement and customer retention.  As a Wordpress plugin, MyCurator connects to the same 
-cloud process that powers the hosted business sites.  This allows MyCurator to maintain a low processing overhead 
-on your blog.
+cloud process that powers the hosted business sites.  This allows MyCurator to maintain a low processing 
+overhead on your blog.
 
 * The full text and all images for each article are available as a meta box in the WordPress post editor.
 * Attribution to the original article is automatically inserted into the curated post.
@@ -67,6 +68,12 @@ themes. Optionally, it will try to save an image from the article as the feature
 Yes, MyCurator works with Network sites.  You must have a key for each site.  Enterprise options are available 
 for businesses and larger sites that need many keys.  Visit http://www.target-info.com/hosted/ for more information.
 
+= Does MyCurator work with other languages? =
+
+Yes, MyCurator will read and post articles written in other languages.  All characters in the UTF-8 encoding, the same
+used by WordPress, will be displayed.  You can customize the link to the original page to match your language.  
+The admin pages and the training videos are only in English at this time.
+
 = How often does MyCurator read my sources for articles? =
 
 You can set MyCurator to process every 3, 6, 12 or 24 hours, depending on how often new articles are posted to 
@@ -82,6 +89,14 @@ cloud services.
 3. New saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.1.1 =
+* To support languages, you can customize the text of the link to the original or saved page
+* Fix to allow special language characters in article excerpt
+* Allow deletion of any Topic
+* New option to Not store excerpt field on post
+* More validation on Topic Name
+* Trim spaces from API Key entry
 
 = 1.1.0 =
 * Display article full text in WordPress post editor meta box
