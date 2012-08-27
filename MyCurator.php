@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -397,6 +397,8 @@ function mct_ai_topicpage() {
     $pagetitle = 'New Topic';
     $update_type = 'false';  //set up for insert
     $msg = '';
+    $topic_name = '';
+    $error_flag = false;
     $edit_vals = array();
     $do_report = false;
 
@@ -419,14 +421,9 @@ function mct_ai_topicpage() {
     //Check if submit
     if (isset($_POST['Submit']) ) {
         if (!current_user_can('manage_options')) wp_die("Insufficient Privelege");
-        check_admin_referer('mct_ai_topicpg','topicpg');        
-        //sanitize values and update db
-        //Create Slug if needed
-        if (empty($_POST['topic_slug'])){
-            $topicslug = sanitize_title($_POST['topic_name']);
-        } else {
-            $topicslug = $_POST['topic_slug'];
-        }
+        check_admin_referer('mct_ai_topicpg','topicpg'); 
+        // Get the post values and sanitize
+ 
         //Clean up domains
         $valid_str = '';
         $varray = explode("\n",$_POST['topic_skip_domains']);
@@ -442,8 +439,7 @@ function mct_ai_topicpage() {
         if (!empty($_POST['sourceChk'])){
             $tsource = implode(',',$_POST['sourceChk']);
         }
-        $val_array = array (
-            'topic_slug' => $topicslug, 
+        $edit_vals = array (
             'topic_type' => trim(sanitize_text_field($_POST['topic_type'])),
             'topic_status' => trim(sanitize_text_field($_POST['topic_status'])), 
             'topic_search_1' => trim(sanitize_text_field(stripslashes($_POST['topic_search_1']))),
@@ -455,29 +451,52 @@ function mct_ai_topicpage() {
             'topic_tag_search2' => $_POST['topic_tag_search2'],
             'topic_sources' => $tsource,
             'topic_min_length' => strval(absint($_POST['topic_min_length']))
-        );
-        if ($_GET['updated'] == 'true'){
-            //Do an update
-            $where = array('topic_name' => trim(sanitize_text_field($_POST['topic_name'])));
-            $wpdb->update($ai_topic_tbl, $val_array, $where);
-            $msg = "Topic Updated";
+        );        
+        // Get category create name
+        $createcat = trim(sanitize_text_field($_POST['topic_createcat']));
+        //Get the topic name and validate
+        $topic_name = trim(sanitize_text_field($_POST['topic_name']));
+        if ($topic_name == '') {
+            $msg = 'Must have a Topic Name';
+            $error_flag = true;
         } else {
-            //Create New Category if entered
-            if (!empty($_POST['topic_createcat'])) {
-                $theterm = wp_insert_term(trim(sanitize_text_field($_POST['topic_createcat'])),'category');
-                if (is_wp_error($theterm)){
-                    $msg = $theterm->get_error_message();
-                } else {
-                    $val_array['topic_cat'] = $theterm['term_id'];
-                }
+            if (preg_match('{^[a-zA-Z0-9-_\s]+$}',$topic_name) != 1) $error_flag = true;
+            if ($error_flag) $msg = "Topic Name may only contain characters, numbers, -, _ and spaces";
+        }
+        if (!$error_flag) {
+            //Create Slug if needed
+            if (empty($_POST['topic_slug'])){
+                $topicslug = sanitize_title($topic_name);
+            } else {
+                $topicslug = $_POST['topic_slug'];
             }
-            //Do an insert
-            $val_array['topic_name'] = trim(sanitize_text_field($_POST['topic_name']));
-            $wpdb->insert($ai_topic_tbl, $val_array);
-            if (empty($msg)) $msg = "Topic Added";
-            else $msg = "Topic Added - ".$msg;
-            //Add the new topic to the taxonomy database for the Target custom posts
-            wp_insert_term($val_array['topic_name'],'topic');
+            $edit_vals['topic_slug'] = $topicslug;
+            
+            if ($_GET['updated'] == 'true'){
+                //Do an update
+                $where = array('topic_name' => $topic_name);
+                $wpdb->update($ai_topic_tbl, $edit_vals, $where);
+                $msg = "Topic Updated";
+            } else {
+                //Create New Category if entered
+                if (!empty($createcat)) {
+                    $theterm = wp_insert_term($createcat,'category');
+                    if (is_wp_error($theterm)){
+                        $msg = $theterm->get_error_message();
+                    } else {
+                        $edit_vals['topic_cat'] = $theterm['term_id'];
+                    }
+                }
+                //Do an insert
+                $edit_vals['topic_name'] = $topic_name;
+                $wpdb->insert($ai_topic_tbl, $edit_vals);
+                if (empty($msg)) $msg = "Topic Added";
+                else $msg = "Topic Added - ".$msg;
+                //Add the new topic to the taxonomy database for the Target custom posts
+                wp_insert_term($edit_vals['topic_name'],'topic');
+                $edit_vals = '';
+                $createcat = '';
+            }
         }
     }
     if (isset($_GET['edit'])){
@@ -521,22 +540,31 @@ function mct_ai_topicpage() {
         //Set up sources checkboxes
         $sources = array_map('trim',explode(',',$edit_vals['topic_sources']));
     } else {
-        $edit_vals['topic_status'] = 'Training';  //Set defaults
-        $edit_vals['topic_type'] = 'Relevance';
+        //New topic, if error, don't reset values
+        if (empty($edit_vals)){
+            $edit_vals['topic_status'] = 'Training';  //Set defaults
+            $edit_vals['topic_type'] = 'Relevance';
+            $edit_vals['topic_tag_search2'] = '1';  //Default to use as tags
+            $edit_vals['topic_name'] = '';
+            $edit_vals['topic_slug'] = '';
+            $edit_vals['topic_search_1'] = '';
+            $edit_vals['topic_search_2'] = '';
+            $edit_vals['topic_exclude'] = '';
+            $edit_vals['topic_skip_domains'] = '';
+            $edit_vals['topic_cat'] = '';
+            $edit_vals['topic_tag'] = '';
+            $edit_vals['topic_sources'] = '';
+            $edit_vals['topic_min_length'] = '';
+            $edit_vals['topic_createcat'] = '';
+        } else {
+            //error, so reset selected cat, tag, sources
+            $cats['selected'] = $edit_vals['topic_cat'];
+            $tags['selected'] = $edit_vals['topic_tag'];
+            //Set up sources checkboxes
+            $sources = array_map('trim',explode(',',$edit_vals['topic_sources']));            
+        }
         $status_vals[] = 'Inactive';
         $status_vals[] = 'Training';
-        $edit_vals['topic_tag_search2'] = '1';  //Default to use as tags
-        $edit_vals['topic_name'] = '';
-        $edit_vals['topic_slug'] = '';
-        $edit_vals['topic_search_1'] = '';
-        $edit_vals['topic_search_2'] = '';
-        $edit_vals['topic_exclude'] = '';
-        $edit_vals['topic_skip_domains'] = '';
-        $edit_vals['topic_cat'] = '';
-        $edit_vals['topic_tag'] = '';
-        $edit_vals['topic_sources'] = '';
-        $edit_vals['topic_min_length'] = '';
-        $edit_vals['topic_createcat'] = '';
     }
     //Render page
     ?>
@@ -544,9 +572,13 @@ function mct_ai_topicpage() {
     <?php screen_icon('plugins'); ?>
     <h2>MyCurator <?php echo $pagetitle; ?></h2>  
     <?php 
-    if (!empty($msg)){ ?>
-       <div id=”message” class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
-    <?php } ?>
+    if (!empty($msg)){ 
+        if ($error_flag) { ?>
+           <div id=”message” class="error" ><p><strong><?php echo "TOPIC NOT CREATED: ".$msg ; ?></strong></p></div>
+        <?php } else { ?>
+           <div id=”message” class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
+    <?php }
+    }?>
        <p>Use spaces to separate keywords.  You can use phrases in Keywords by enclosing words in single or double quotes 
            (start and end quotes must be the same).  Use the root of a keyword and it will match all endings, for example manage 
            will match manages, manager and management.</p>
@@ -608,7 +640,7 @@ function mct_ai_topicpage() {
             <?php if ($update_type == 'false') { ?>
             <tr>
                 <th scope="row">Or Create New Category</th>
-                <td><input name="topic_createcat" type="input" id="topic_createcat" size="50" maxlength="200" value="" /><span> (Will override any Category chosen above)</span></td>    
+                <td><input name="topic_createcat" type="input" id="topic_createcat" size="50" maxlength="200" value="<?php echo $createcat; ?>" /><span> (Will override any Category chosen above)</span></td>    
             </tr> 
             <?php } ?>
             <tr>
@@ -684,14 +716,17 @@ function mct_ai_optionpage() {
         $opt_update = array (
             'ai_log_days' => absint($_POST['ai_log_days']),
             'ai_on' => ($_POST['ai_on'] == FALSE ? FALSE : TRUE),
-            'ai_cloud_token' => $_POST['ai_cloud_token'],            
+            'ai_cloud_token' => trim($_POST['ai_cloud_token']),
             'ai_train_days' => absint($_POST['ai_train_days']),
             'ai_short_linkpg' => absint($_POST['ai_short_linkpg']),
             'ai_save_thumb' => absint($_POST['ai_save_thumb']),
             'ai_cron_period' => $_POST['ai_cron_period'],
             'ai_keep_good_here' => absint($_POST['ai_keep_good_here']),
             'ai_excerpt' => absint($_POST['ai_excerpt']),
+            'ai_nosave_excerpt' => absint($_POST['ai_nosave_excerpt']),
             'ai_show_orig' => absint($_POST['ai_show_orig']),
+            'ai_orig_text' => trim(sanitize_text_field($_POST['ai_orig_text'])),
+            'ai_save_text' => trim(sanitize_text_field($_POST['ai_save_text'])),
             'ai_edit_makelive' => absint($_POST['ai_edit_makelive']),
         );
         update_option('mct_ai_options',$opt_update);
@@ -713,6 +748,8 @@ function mct_ai_optionpage() {
     //Get Options
     $cur_options = get_option('mct_ai_options');
     if (empty($cur_options['ai_cron_period'])) $cur_options['ai_cron_period'] = '6';
+    if (empty($cur_options['ai_orig_text'])) $cur_options['ai_orig_text'] = 'Click here to view original web page at';
+    if (empty($cur_options['ai_save_text'])) $cur_options['ai_save_text'] = 'Click here to view full article';
     ?>
     <div class='wrap'>
     <?php screen_icon('plugins'); ?>
@@ -775,7 +812,24 @@ function mct_ai_optionpage() {
                 <th scope="row">Edit post when made live?</th>
                 <td><input name="ai_edit_makelive" type="checkbox" id="ai_edit_makelive" value="1" <?php checked('1', $cur_options['ai_edit_makelive']); ?>  />
                 <span>&nbsp;<em>Will create draft post and display in post editor on [Make Live]</em></span></td>     
-            </tr>        
+            </tr>   
+            <tr>
+                <th scope="row">Do Not Save to Excerpt Field in Post</th>
+                <td><input name="ai_nosave_excerpt" type="checkbox" id="ai_nosave_excerpt" value="1" <?php checked('1', $cur_options['ai_nosave_excerpt']); ?>  />
+                <span>&nbsp;<em>Use this if your theme uses the_excerpt and you add comments to the post</em></span></td>     
+            </tr> 
+            <tr><th><strong>International Settings</strong></th>
+            <td> </td></tr>
+            <tr>
+                <th scope="row">Link to Original Page Text</th>
+                <td><input name="ai_orig_text" type="text" id="ai_orig_text" size ="50" value="<?php echo $cur_options['ai_orig_text']; ?>"  />
+                    <span>&nbsp;<em>If using link to original web page, customize this text</em></span></td> 
+            </tr>
+            <tr>
+                <th scope="row">Link to Saved Readable Page Text</th>
+                <td><input name="ai_save_text" type="text" id="ai_save_text" size ="50" value="<?php echo $cur_options['ai_save_text']; ?>"  />
+                    <span>&nbsp;<em>If using link to saved readable page, customize this text</em></span></td> 
+            </tr>
         </table>
             <?php wp_nonce_field('mct_ai_optionspg','optionset'); ?>
         <div class="submit">
@@ -891,17 +945,17 @@ function mct_ai_removepage() {
             }
         }
     }
-    //Get the inactive topics
+    //Get the topics
     $sql = "SELECT `topic_name`, `topic_type`, `topic_cat`, `topic_tag`
-            FROM $ai_topic_tbl
-            WHERE `topic_status` = 'Inactive'";
+            FROM $ai_topic_tbl";
+           // WHERE `topic_status` = 'Inactive'";
     $edit_vals = $wpdb->get_results($sql, ARRAY_A);
 
     ?>
     <div class='wrap'>
     <?php screen_icon('plugins'); ?>
     <h2>MyCurator Remove Topics</h2>  
-    <h4>Each of the MyCurator topics that are currently inactive are listed below.  Click the checkbox next to any topic and it will be removed when you press Submit.</h4>
+    <h4>Each of the MyCurator topics are listed below.  Click the checkbox next to any topic and it will be removed when you press Submit.</h4>
        <form name="select-topic" method='post'>
         <table class="widefat" >
             <thead>

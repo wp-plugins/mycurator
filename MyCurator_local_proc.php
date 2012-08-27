@@ -347,8 +347,14 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     mct_ai_getpostcontent($page, $post_arr);
     if ($mct_ai_optarray['ai_show_orig']){
         $post_content = $post_arr['article'].'<br />'.$post_arr['orig_link'];
+        if (!empty($mct_ai_optarray['ai_orig_text'])) {
+            $post_content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$post_content);
+        }
     } else {
         $post_content = $post_arr['article'].'<br /><a href="'.$link_redir.'" >Click here to view full article</a>';
+        if (!empty($mct_ai_optarray['ai_save_text'])) {
+            $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
+        }
     }
     $post_content = apply_filters('mct_ai_postcontent',$post_content);
     // Get an image if we can - 1st match of appropriate size
@@ -381,7 +387,6 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     } 
     $details = array(
       'post_content'  => $post_content,
-      'post_excerpt' => $post_content,
       'post_author' => $pa,
       'post_title'  =>  $post_arr['title'],
       'ping_status' => 'closed',
@@ -389,6 +394,13 @@ function mct_ai_post_entry($topic, $post_arr, $page){
       'post_name' => sanitize_title($post_arr['title']),
       'post_status' => 'publish'
     );
+    //Save the excerpt field?
+    //ai_nosave_excerpt
+    if ($mct_ai_optarray['ai_nosave_excerpt']) {
+        //don't save
+    } else {
+        $details['post_excerpt'] = $post_content;
+    }
     //Use topic & aiclass in all cases
     if ($topic['topic_type'] == 'Filter'){
         $details['tax_input'] = array (  //add topic name 
@@ -474,7 +486,7 @@ function mct_ai_getpostcontent($page, &$post_arr){
     //Now get article content
     $article = preg_replace('@<style[^>]*>[^<]*</style>@i','',$article);  //remove style tags
     $article = preg_replace('{<([^>]*)>}',' ',$article);  //remove tags but leave spaces
-    $article = preg_replace('{&[a-z]*;}',"'",$article);  //remove any encoding
+    //$article = preg_replace('{&[a-z]*;}',"'",$article);  //remove any encoding
     //Save article snippet
     $excerpt = preg_replace('/\s+/', ' ', $article);  //get rid of extra spaces
     //Get Excerpt words
