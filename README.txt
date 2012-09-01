@@ -4,7 +4,7 @@ Donate link:
 Tags: content, curation, marketing, rss, instapaper, feed, feeds
 Requires at least: 3.1
 Tested up to: 3.4
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,10 +15,9 @@ content you want.
 
 MyCurator is a complete content curation platform for WordPress blogs.  Rather than make you search for new content,
 MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts. 
-It reads all of the alerts, blogs, and news feeds you want to follow.  Each article found by MyCurator includes 
-the full text and all images as well as the attribution to the original page, right in the WordPress editor.  
-You can easily grab quotes and images for your curated post, adding your insights and comments, quickly creating 
-newly curated content for your blog.
+Each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
+right in the WordPress editor.  You can easily grab quotes and images for your curated post, adding your insights 
+and comments, quickly creating newly curated content for your blog.
 
 Like a personal assistant, MyCurator uses AI software learning techniques to weed out 90% or more 
 of the articles in your feeds, alerts and blogs, focusing on topics you've trained it to follow. 
@@ -89,6 +88,12 @@ cloud services.
 3. New saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.1.2 =
+* Fix to delete saved featured post thumbnail image when a training post is deleted
+* If you saved first picture as a featured post thumbnail, you will find many Unattached images in your Media Library
+* Remove unattached images by choosing Unattached link at top of Media Library page, then use Bulk Actions to Delete Permanently
+* See http://www.target-info.com/2012/09/01/update-to-version-1-1-2-to-fix-image-delete-problem/ for more information
 
 = 1.1.1 =
 * To support languages, you can customize the text of the link to the original or saved page

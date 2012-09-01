@@ -65,7 +65,7 @@ function mct_sl_getsavedpage($sl_id){
 
 function mct_sl_deletefile($post_id){
     //Hook to remove saved pages from db when post is deleted
-    global $wpdb, $ai_sl_pages_tbl;
+    global $wpdb, $ai_sl_pages_tbl, $mct_ai_optarray;
     // Get the links from the meta data, allow for more than one
     $newlinks = get_post_meta($post_id,'mct_sl_newurl',true);
     if (!empty($newlinks)){
@@ -76,6 +76,11 @@ function mct_sl_deletefile($post_id){
                 $sql = "DELETE FROM $ai_sl_pages_tbl WHERE sl_page_id = $sl_id";
                 $del = $wpdb->query($sql);
             }
+        }
+        //Delete featured image if being saved
+        if ($mct_ai_optarray['ai_save_thumb']) {
+            $thumb_id = get_post_meta($post_id, '_thumbnail_id',true);
+            if ($thumb_id) wp_delete_attachment($thumb_id,true);
         }
     }
 }
