@@ -373,15 +373,24 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         }
     }
     //Set up the values, not set are defaults
-    //Check for a user, if not we are in cron process so set an admin user for the site
+    //Check for a user, if not we are in cron process so set  user for the site
     $pa = $user_id;
     if (!$pa){
-        $useradms = get_users(array('role' => 'administrator'));
-        if (empty($useradms)){
-            $pa = 1;
+        if (empty($mct_ai_optarray['ai_post_user'])) {
+            $useradms = get_users(array('role' => 'administrator'));
+            if (empty($useradms)){
+                $pa = 1;
+            } else {
+                $first = $useradms[0];
+                $pa = $first->ID;
+            }
         } else {
-            $first = $useradms[0];
-            $pa = $first->ID;
+            $useris = get_user_by('login',$mct_ai_optarray['ai_post_user']);
+            if ($useris) {
+                $pa = $useris->ID;
+            } else {
+                $pa = 1;
+            }
         }
         wp_set_current_user($pa);
     } 

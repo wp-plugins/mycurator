@@ -76,7 +76,7 @@ function mct_ai_register(){
             'manage_terms' => 'manage_network', //by default only super admin - shouldn't be available
             'edit_terms' => 'manage_network',
             'delete_terms' => 'manage_network',
-            'assign_terms' => 'manage_options'  
+            'assign_terms' => 'edit_others_posts'  
         ),
     );
     register_taxonomy('topic', array('target_ai'), $topic_args);
@@ -106,7 +106,7 @@ function mct_ai_register(){
             'manage_terms' => 'manage_network', //by default only super admin - shouldn't be available
             'edit_terms' => 'manage_network',
             'delete_terms' => 'manage_network',
-            'assign_terms' => 'manage_options'  
+            'assign_terms' => 'edit_others_posts'  
         ),
     );
     register_taxonomy('ai_class', array('target_ai'), $class_args);
