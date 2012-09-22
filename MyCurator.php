@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.1.2
+ * Version: 1.1.3
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -162,6 +162,7 @@ function mct_ai_firstpage() {
     global $user_id, $mct_ai_optarray;
     
     $msg = '';
+    $token = $mct_ai_optarray['ai_cloud_token'];
     $trainpage = '';
     if (isset($_POST['Submit']) && !empty($_POST['train_page'])) {
         if (!current_user_can('manage_options')) wp_die("Insufficient Privelege");
@@ -231,6 +232,12 @@ function mct_ai_firstpage() {
             <p>Normally you would keep the training page out of your menus by making it a Private page so that only authorized users (Authors and above) may 
             train the MyCurator system.  When the Training page is created, you will be able to access it from the Training Page link on this page in the Important Links to the right (or set a bookmark in your 
             browser).  If you display the training page on your site, unauthorized users will see the articles but will be unable to train them.</p>
+            <h3>MyCurator Volume Information</h3>
+            <?php if ($token) { ?>
+                <iframe src="http://www.target-info.com/tgtinfo_volume.php?token=<?php echo $token; ?>" width="100%" ></iframe>
+            <?php } else { ?>
+                <strong>After you get your API Key, refer back to this page periodically to review your MyCurator Article Processing Counts</strong>
+            <?php } ?>
         </div>
         <div class="postbox-container" style="width:20%; margin-top: 35px; margin-left: 15px;">
                 <div class="metabox-holder">	
@@ -242,7 +249,12 @@ function mct_ai_firstpage() {
                                         <div class="inside">
                                                 <ul>
                                                         <li>- <a href="http://www.target-info.com/training-videos/" target="_blank" >Link to MyCurator Training Videos</a></li>
+                                                        <li>- MyCurator <a href="http://www.target-info.com/documentation/" target="_blank" />Documentation</a></li>
+                                                        <?php if (mct_ai_checkpage('support')) { ?>
+                                                        <li>- MyCurator <a href="http://www.target-info.com/support/" target="_blank" />Support Forums</a></li>
+                                                        <?php } else {?>
                                                         <li>- MyCurator <a href="http://wordpress.org/support/plugin/mycurator" target="_blank" />support forum</a></li>
+                                                        <?php } ?>
                                                         <?php if (empty($mct_ai_optarray['ai_cloud_token'])) { ?>
                                                         <li>- MyCurator API Key: <a href="http://www.target-info.com/api-key" />Get API Key</a></li><?php } ?>
                                                         <li>- <a href="http://www.target-info.com/myaccount/" target="_blank" >My Account</a> at Target Info</li>
@@ -276,6 +288,14 @@ function mct_ai_firstpage() {
         </div>
     </div>
 <?php
+}
+
+function mct_ai_checkpage($page){
+    //Checks if page is up on target-info.com site
+    $response = wp_remote_head("http://www.target-info.com/".$page, array('timeout' => 1));
+    if (is_wp_error($response)) return false;
+    if ($response['response']['code'] == 404) return false;
+    return true;
 }
 
 function mct_ai_showfeed($url, $cnt){
@@ -708,7 +728,11 @@ function mct_ai_optionpage() {
 
     mct_ai_createdb();
     $msg = '';
-    
+    //Set up user login dropdown
+   $allusers = get_users(array('role' => 'editor'));
+   $moreusers = get_users(array('role' => 'administrator'));
+   $allusers = array_merge($allusers,$moreusers);
+   
     if (isset($_POST['Submit']) ) {
         //load options into array and update db
         if (!current_user_can('manage_options')) wp_die("Insufficient Privelege");
@@ -727,6 +751,7 @@ function mct_ai_optionpage() {
             'ai_show_orig' => absint($_POST['ai_show_orig']),
             'ai_orig_text' => trim(sanitize_text_field($_POST['ai_orig_text'])),
             'ai_save_text' => trim(sanitize_text_field($_POST['ai_save_text'])),
+            'ai_post_user' => trim(sanitize_text_field($_POST['ai_post_user'])),
             'ai_edit_makelive' => absint($_POST['ai_edit_makelive']),
         );
         update_option('mct_ai_options',$opt_update);
@@ -796,7 +821,15 @@ function mct_ai_optionpage() {
             <tr>
                 <th scope="row">Excerpt length in words:</th>
                 <td><input name="ai_excerpt" type="text" id="ai_excerpt" size ="5" value="<?php echo $cur_options['ai_excerpt']; ?>"  /></td>    
-            </tr>               
+            </tr> 
+            <tr>
+                    <th scope="row">User for MyCurator Posts</th>
+                    <td><select name="ai_post_user" >
+                    <?php foreach ($allusers as $users){ ?>
+                        <option value="<?php echo $users->user_login; ?>" <?php selected($cur_options['ai_post_user'],$users->user_login); ?> ><?php echo $users->user_login; ?></option>
+                    <?php } //end foreach ?>
+                        </select></td>       
+                </tr>
             <tr><th><strong>Manual Curation Settings</strong></th>
             <td> </td></tr>
             <tr>

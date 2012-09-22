@@ -3,8 +3,8 @@ Contributors: mtilly
 Donate link: 
 Tags: content, curation, marketing, rss, instapaper, feed, feeds
 Requires at least: 3.1
-Tested up to: 3.4
-Stable tag: 1.1.2
+Tested up to: 3.4.2
+Stable tag: 1.1.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -88,6 +88,11 @@ cloud services.
 3. New saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.1.3 =
+* Added new option to choose the Admin or Editor user that will be used in MyCurator posts
+* Added MyCurator article processing statistics to MyCurator initial menu page
+* Added link to MyCurator documentation on MyCurator initial menu page
 
 = 1.1.2 =
 * Fix to delete saved featured post thumbnail image when a training post is deleted
