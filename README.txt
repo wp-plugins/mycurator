@@ -1,10 +1,10 @@
 === MyCurator ===
 Contributors: mtilly
 Donate link: 
-Tags: content, curation, marketing, rss, instapaper, feed, feeds
+Tags: content curation, curation, content marketing, content management, content discovery, marketing, rss, instapaper, feed, feeds
 Requires at least: 3.1
 Tested up to: 3.4.2
-Stable tag: 1.1.3
+Stable tag: 1.1.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -40,9 +40,9 @@ overhead on your blog.
 * Or you may choose to manually curate the best insights from the articles into your own blog posts.
 * Each article is saved as a readable page, like Instapaper, using Diffbot technology.
 
-MyCurator is free for individuals, bloggers and non-profits, but you will have to obtain an API Key to access the 
-cloud services.  For businesses, those promoting products and higher volume users, low priced monthly plans are 
-available.  Visit http://www.target-info.com/ for more information.
+MyCurator is free for individuals and non-profits, but you will have to obtain an API Key to access the 
+cloud services.  For businesses, those promoting products, internet marketers and higher volume users, low priced monthly plans are 
+available - always with a free 30 day trial.  Visit http://www.target-info.com/ for more information.
 
 == Installation ==
 
@@ -88,6 +88,12 @@ cloud services.
 3. New saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.1.4 =
+* Fixed problems with non-English characters in the Topic Keywords not matching articles.
+* Added option to filter and train non-English articles using UTF-8 character processing to handle extended character sets
+* Added links to documentation on the Administrative pages
+* Fixed a problem with Filter type topics not having Trash and [Make Live] tags
 
 = 1.1.3 =
 * Added new option to choose the Admin or Editor user that will be used in MyCurator posts
