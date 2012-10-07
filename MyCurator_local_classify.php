@@ -26,15 +26,15 @@ function mct_ai_get_words($page, $dup=true){
     $cnt = preg_match('{<span class="mct-ai-article-content">(.*)}si',$page,$matches);  //don't stop at end of line
     if ($cnt) $article = $matches[1];
     //Get rid of tags, non-alpha
-    $title = preg_replace('{<([^>]*)>}',' ',$title);  //remove tags but leave spaces
-    $title = preg_replace('{[^A-Za-z\s\s+]}',' ',$title); //remove non-alpha
+    $title = wp_strip_all_tags($title);
+    $title = preg_replace('{[^A-Za-z0-9\s\s+]}',' ',$title); //remove non-alpha
 
-    $author = preg_replace('{[^A-Za-z\s\s+]}',' ',$author); //remove non-alpha
+    $author = wp_strip_all_tags($author);
+    $author = preg_replace('{[^A-Za-z0-9\s\s+]}',' ',$author); //remove non-alpha
 
-    $article = preg_replace('@<style[^>]*>[^<]*</style>@i','',$article);  //remove style tags
-    $article = preg_replace('{<([^>]*)>}',' ',$article);  //remove tags but leave spaces
+    $article = wp_strip_all_tags($article);
     $article = preg_replace('{&[a-z]*;}',"'",$article);  //remove any encoding
-    $article = preg_replace('{[^A-Za-z\s\s+]}',' ',$article); //remove non-alpha
+    $article = preg_replace('{[^A-Za-z0-9\s\s+]}',' ',$article); //remove non-alpha
     //split sections  into words and merge
     $awords = preg_split('{\s+}',$article);
     if (empty($awords)){
@@ -76,13 +76,124 @@ function mct_ai_get_words($page, $dup=true){
     return $words;
 }
 
+function mct_ai_utf_words($page, $dup=true){
+    //$page is the page in rendered format
+    //this function returns an array of words stripped from the article, or '' if no words found
+    //if dup is false, it won't remove duplicates
+    //Only strips punctuation and is UTF-8 aware
+    
+    global $stopwords, $threeletter;
+
+    //Is this a formated page from DiffBot?
+    if (strpos($page, 'savelink-article')=== false){
+        return '';  
+    }
+    
+    $title = '';
+    $author = '';
+    $article = '';
+    //$page has the content, with html, using the format of diffbot_page function, separate sections
+    $cnt = preg_match('{<title>([^<]*)</title>}i',$page,$matches);
+    if ($cnt) $title = $matches[1];
+    $cnt = preg_match('{<div>Author:([^<]*)</div>}',$page, $matches);
+    if ($cnt) $author = $matches[1];
+    $cnt = preg_match('{<span class="mct-ai-article-content">(.*)}si',$page,$matches);  //don't stop at end of line
+    if ($cnt) $article = $matches[1];
+    //Get rid of tags, punctuatio
+    if ($title != ''){
+        $title = wp_strip_all_tags($title, true);  //remove tags but leave spaces
+        $title = html_entity_decode($title,ENT_NOQUOTES,"UTF-8"); //get rid of text entities
+        $title = preg_replace('|[^\p{L}\p{N}]|u'," ",$title); //remove punctuation UTF-8
+    }
+    if ($author != ''){
+        $author = wp_strip_all_tags($author, true);  //remove tags but leave spaces
+        $author = html_entity_decode($author,ENT_NOQUOTES,"UTF-8");
+        $author = preg_replace('|[^\p{L}\p{N}]|u'," ",$author); //remove punctuation, UTF-8 
+    }
+    if ($article != ''){
+        $article = wp_strip_all_tags($article, true);  //remove tags but leave spaces
+        $article = html_entity_decode($article,ENT_NOQUOTES,"UTF-8");
+        $article = preg_replace('|[^\p{L}\p{N}]|u'," ",$article); //remove punctuation, UTF-8 aware
+    }
+    //split sections  into words and merge
+    $allstr = $title." ".$author." ".$article;
+    $awords = preg_split('{\s+}',$allstr);
+    if (empty($awords)){
+        return '';  //no words in the body to work with
+    }
+   
+    //remove stop words
+    $words = array();
+    foreach ($awords as $a){
+        $a = trim($a);
+        $len = mct_ai_utf_strlen($a);
+        if ($len < 4){  //not long enough?
+            if ($len < 2){ 
+                continue;
+            } else {
+                if (!mct_ai_utf_inarray($a,$threeletter)){  
+                     continue;
+                 }
+            }
+        }
+        $a = mct_ai_strtolower_utf8($a); //now make lowercase
+        // //$a = PorterStemmer::Stem($a);
+        if (mct_ai_utf_inarray($a,$stopwords)){  //a stopword?
+            continue;
+        }
+        if ($dup){
+            if (!mct_ai_utf_inarray($a,$words)){  //no dups
+                $words[] = $a;          //got a good word
+            }
+        } else {
+            $words[] = $a;
+        }
+    }
+    
+    return $words;
+}
+
+function mct_ai_utf_strlen($str){
+    //use mb string if available as much faster
+    if (function_exists('mb_strlen')) return mb_strlen($str,'UTF-8');
+    return iconv_strlen($str,'UTF-8');
+}
+
+function mct_ai_utf_inarray($key,$arrayval){
+    //Find words in array using preg and u modifier for UTF-8 and i modifier for case
+    if (!count($arrayval)) return false;
+    foreach ($arrayval as $arr) {
+        if (preg_match('{^'.$key.'$}ui',$arr)) return true;
+    }
+    return false;
+}
+
+function mct_ai_strtolower_utf8($string){ 
+  $convert_to = array( 
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", 
+    "v", "w", "x", "y", "z", "à", "á", "â", "ã", "ä", "å", "æ", "ç", "è", "é", "ê", "ë", "ì", "í", "î", "ï", 
+    "ð", "ñ", "ò", "ó", "ô", "õ", "ö", "ø", "ù", "ú", "û", "ü", "ý", "а", "б", "в", "г", "д", "е", "ё", "ж", 
+    "з", "и", "й", "к", "л", "м", "н", "о", "п", "р", "с", "т", "у", "ф", "х", "ц", "ч", "ш", "щ", "ъ", "ы", 
+    "ь", "э", "ю", "я" 
+  ); 
+  $convert_from = array( 
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", 
+    "V", "W", "X", "Y", "Z", "À", "Á", "Â", "Ã", "Ä", "Å", "Æ", "Ç", "È", "É", "Ê", "Ë", "Ì", "Í", "Î", "Ï", 
+    "Ð", "Ñ", "Ò", "Ó", "Ô", "Õ", "Ö", "Ø", "Ù", "Ú", "Û", "Ü", "Ý", "А", "Б", "В", "Г", "Д", "Е", "Ё", "Ж", 
+    "З", "И", "Й", "К", "Л", "М", "Н", "О", "П", "Р", "С", "Т", "У", "Ф", "Х", "Ц", "Ч", "Ш", "Щ", "Ъ", "Ъ", 
+    "Ь", "Э", "Ю", "Я" 
+  ); 
+
+  return str_replace($convert_from, $convert_to, $string); 
+} 
+
 function mct_ai_no_dups($words){
     //remove duplicates from an array of words
     
     if (empty($words)) return;
     $nodup = array();
     foreach($words as $w){
-        if (!in_array($w,$nodup)){  //no dups
+        if (!mct_ai_utf_inarray($w,$nodup)){  //no dups
             $nodup[] = $w;          //got a good word
         }
     }
@@ -226,7 +337,7 @@ class Relevance {
 }  //end class 
 
 function mct_ai_trainpost($postid, $tname, $cat){
-    global $wpdb, $ai_topic_tbl, $ai_sl_pages_tbl;
+    global $wpdb, $ai_topic_tbl, $ai_sl_pages_tbl, $mct_ai_optarray;
     // This function trains a topic relevance engine with a saved page from a post
     // postid is the post, tname is the topic name and cat is good/bad category
     
@@ -238,7 +349,11 @@ function mct_ai_trainpost($postid, $tname, $cat){
     $sl_ids = mct_ai_getsavedpageid($postid);
     if (count($sl_ids) != 1) return;  //Can only have one link if we train
     $page = mct_ai_getsavedpage($sl_ids[0]);
-    $words = mct_ai_get_words($page);
+    if ($mct_ai_optarray['ai_utf8']) {
+        $words = mct_ai_utf_words($page);
+    } else {
+        $words = mct_ai_get_words($page);
+    }
     if (empty($words)) return;
     
     //Train it and save db

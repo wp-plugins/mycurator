@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.1.3
+ * Version: 1.1.4
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -195,7 +195,7 @@ function mct_ai_firstpage() {
             <?php screen_icon('plugins'); ?>
             <h2>Welcome to MyCurator</h2> 
             <?php if (!empty($msg)){ ?>
-               <div id=”message” class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
+               <div id="message" class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
             <?php } ?>
             <p>This page has important links and information for using MyCurator.</p>
             <h3>Getting Started</h3>
@@ -235,6 +235,8 @@ function mct_ai_firstpage() {
             <h3>MyCurator Volume Information</h3>
             <?php if ($token) { ?>
                 <iframe src="http://www.target-info.com/tgtinfo_volume.php?token=<?php echo $token; ?>" width="100%" ></iframe>
+                <h3>If your volume is over plan limits this month and last month, you should <a href="http://www.target-info.com/myaccount/" >Upgrade to a Pro or Business Plan</a></h3>
+                &nbsp(You will need your Target Info account login credentials, or choose Lost your Password?)
             <?php } else { ?>
                 <strong>After you get your API Key, refer back to this page periodically to review your MyCurator Article Processing Counts</strong>
             <?php } ?>
@@ -248,16 +250,16 @@ function mct_ai_firstpage() {
                                         <h3 class="hndle"><span><?php echo "Important Links";?></span></h3>
                                         <div class="inside">
                                                 <ul>
-                                                        <li>- <a href="http://www.target-info.com/training-videos/" target="_blank" >Link to MyCurator Training Videos</a></li>
-                                                        <li>- MyCurator <a href="http://www.target-info.com/documentation/" target="_blank" />Documentation</a></li>
+                                                        <li>- <a href="http://www.target-info.com/training-videos/" >Link to MyCurator Training Videos</a></li>
+                                                        <li>- MyCurator <a href="http://www.target-info.com/documentation/" >Documentation</a></li>
                                                         <?php if (mct_ai_checkpage('support')) { ?>
-                                                        <li>- MyCurator <a href="http://www.target-info.com/support/" target="_blank" />Support Forums</a></li>
+                                                        <li>- MyCurator <a href="http://www.target-info.com/support/" >Support Forums at Target Info</a></li>
                                                         <?php } else {?>
-                                                        <li>- MyCurator <a href="http://wordpress.org/support/plugin/mycurator" target="_blank" />support forum</a></li>
+                                                        <li>- MyCurator <a href="http://wordpress.org/support/plugin/mycurator" >support forum</a></li>
                                                         <?php } ?>
                                                         <?php if (empty($mct_ai_optarray['ai_cloud_token'])) { ?>
                                                         <li>- MyCurator API Key: <a href="http://www.target-info.com/api-key" />Get API Key</a></li><?php } ?>
-                                                        <li>- <a href="http://www.target-info.com/myaccount/" target="_blank" >My Account</a> at Target Info</li>
+                                                        <li>- <a href="http://www.target-info.com/myaccount/" >My Account</a> at Target Info</li>
                                                         <?php if (!empty($trainpage)) { ?>
                                                         <li>- <a href="<?php echo $trainpage; ?>" />Link to MyCurator Training Page on your site</a></li> <?php } ?>
                                                 </ul>
@@ -273,9 +275,9 @@ function mct_ai_firstpage() {
                                                 <p style="font-weight: bold;">Twitter @tgtinfo</p>
                                                 <?php 
                                                 $twit_append = '<li>&nbsp;</li>';
-                                                $twit_append .= '<li><a href="http://twitter.com/tgtinfo/" target="_blank">';
+                                                $twit_append .= '<li><a href="http://twitter.com/tgtinfo/" >';
                                                 $twit_append .= 'Follow @tgtinfo on Twitter.</a></li>';
-                                                $twit_append .= '<li><a href="http://www.target-info.com/feed/" target="_blank">';
+                                                $twit_append .= '<li><a href="http://www.target-info.com/feed/" >';
                                                 $twit_append .= 'Subscribe to RSS news feed.</a></li>';
                                                 mct_ai_showfeed( 'http://twitter.com/statuses/user_timeline/tgtinfo.rss', 5);
                                                 echo "<ul>".$twit_append."</ul>";
@@ -307,7 +309,7 @@ function mct_ai_showfeed($url, $cnt){
     foreach ($rss_items as $item){
         $title = $item->get_title();
         $link = $item->get_permalink();
-        echo "<li><a href='$link' target='_blank'>$title</a></li>\n";
+        echo "<li><a href='$link' >$title</a></li>\n";
     }
     echo "</ul>";
 }
@@ -594,14 +596,14 @@ function mct_ai_topicpage() {
     <?php 
     if (!empty($msg)){ 
         if ($error_flag) { ?>
-           <div id=”message” class="error" ><p><strong><?php echo "TOPIC NOT CREATED: ".$msg ; ?></strong></p></div>
+           <div id="message" class="error" ><p><strong><?php echo "TOPIC NOT CREATED: ".$msg ; ?></strong></p></div>
         <?php } else { ?>
-           <div id=”message” class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
+           <div id="message" class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php }
     }?>
        <p>Use spaces to separate keywords.  You can use phrases in Keywords by enclosing words in single or double quotes 
            (start and end quotes must be the same).  Use the root of a keyword and it will match all endings, for example manage 
-           will match manages, manager and management.</p>
+           will match manages, manager and management. See <a href="http://www.target-info.com/documentation-2/documentation-topics/" >Topics Documentation</a> for more details</p>
        <p>Press Save Options button at bottom to save your entries/changes</p>
        <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] . '&updated='.$update_type); ?>"> 
         <table class="form-table" >
@@ -752,6 +754,7 @@ function mct_ai_optionpage() {
             'ai_orig_text' => trim(sanitize_text_field($_POST['ai_orig_text'])),
             'ai_save_text' => trim(sanitize_text_field($_POST['ai_save_text'])),
             'ai_post_user' => trim(sanitize_text_field($_POST['ai_post_user'])),
+            'ai_utf8' => absint($_POST['ai_utf8']),
             'ai_edit_makelive' => absint($_POST['ai_edit_makelive']),
         );
         update_option('mct_ai_options',$opt_update);
@@ -768,6 +771,10 @@ function mct_ai_optionpage() {
             $hour = rand(4,8)-get_option('gmt_offset');
             $strt = mktime($hour);  
             wp_schedule_event($strt,$cronperiod,'mct_ai_cron_process');
+        } else {
+            if (wp_next_scheduled('mct_ai_cron_process')){
+                wp_clear_scheduled_hook('mct_ai_cron_process');  //Clear out old entries
+            }
         }
     }
     //Get Options
@@ -780,9 +787,11 @@ function mct_ai_optionpage() {
     <?php screen_icon('plugins'); ?>
     <h2>MyCurator Options</h2> 
     <?php if (!empty($msg)){ ?>
-       <div id=”message” class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
+       <div id="message" class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php } ?>
-    <p>Use this page to Turn On MyCurator and enter the Cloud Services Token.  You can set MyCurator options as described.</p>
+    <p>Use this page to Turn On MyCurator and enter the Cloud Services Token.  
+        You can set MyCurator options as described - 
+        see <a href="http://www.target-info.com/documentation-2/documentation-options/" >Options Documentation</a> for more details.</p>
         <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] . '&updated=true'); ?>" >
         <table class="form-table" >
             <tr>
@@ -863,7 +872,14 @@ function mct_ai_optionpage() {
                 <td><input name="ai_save_text" type="text" id="ai_save_text" size ="50" value="<?php echo $cur_options['ai_save_text']; ?>"  />
                     <span>&nbsp;<em>If using link to saved readable page, customize this text</em></span></td> 
             </tr>
+            <tr>
+                <th scope="row">Enable Non-English Language Processing?</th>
+                <td><input name="ai_utf8" type="checkbox" id="ai_utf8" value="1" <?php checked('1', $cur_options['ai_utf8']); ?>  />
+                <span>&nbsp;<em>This must be checked if your blog is Not in English, see 
+                        <a href="http://www.target-info.com/documentation-2/documentation-international/" >Documentation -  International</a></em></span></td> 
+            </tr>
         </table>
+            
             <?php wp_nonce_field('mct_ai_optionspg','optionset'); ?>
         <div class="submit">
           <input name="Submit" type="submit" value="Save Options" class="button-primary" />
@@ -920,9 +936,11 @@ function mct_ai_topicsource() {
     ?>
     <div class='wrap'>
     <?php screen_icon('plugins'); ?>
-    <h2>MyCurator Topic Sources</h2>    
+    <h2>MyCurator Topic Sources</h2> 
+    <p>MyCurator relates feeds to the topics you set up based on Link Categories. Choose a Topic below and select one or more sources.  
+    See <a href="http://www.target-info.com/documentation-2/documentation-sources/" >Sources Documentation</a> for more details</p>
     <?php if (!empty($msg)){ ?>
-       <div id=”message” class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
+       <div id="message" class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php } ?>
    <form name="select-topic" method='post'> 
 	<input type="hidden" name="topic" value="select" />
@@ -1077,7 +1095,8 @@ function mct_ai_logspage() {
     <div class='wrap'>
     <?php screen_icon('plugins'); ?>
     <h2>MyCurator Logs</h2>    
-    <h4>Activity and Error Logs</h4>
+     <p>MyCurator keeps logs of what it does with each article found in your feed sources.  
+        See <a href="http://www.target-info.com/documentation-2/documentation-logs/" >Logs Documentation</a> for more details.</p>
     <?php
        print("<div class=\"tablenav\">"); 
        $qargs = array(

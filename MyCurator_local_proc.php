@@ -50,6 +50,7 @@ function mct_ai_process_topic($topic){
     if (empty($sources)){
         return;  //Nothing to read
     }
+    
     foreach ($sources as $source){
         //For this source, get each feed
         $args = array(
@@ -253,6 +254,7 @@ function mct_ai_callcloud($type,$topic,$postvals){
         'args' => $postvals,
         'token' => $mct_ai_optarray['ai_cloud_token'],
         'type' => $type,
+        'utf8' => $mct_ai_optarray['ai_utf8'], //which 'word' processing to use
         'topic_id' => strval($topic['topic_id'])
         );
     $cloud_json = json_encode($cloud_data);
@@ -549,6 +551,7 @@ function mct_ai_clean_postsread($pread){
         mct_ai_log('Targets',MCT_AI_LOG_PROCESS, 'Deleted '.count($cols), '');
     }
 }
+
 
 function mct_ai_set_simplepie($args){
     //Set the cache duration
