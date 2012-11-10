@@ -277,7 +277,8 @@ function target_ai_shortcode(){
          }
          while (have_posts()) {
              the_post();
-?>             
+?>     
+
 <!-- post title -->
 <div <?php post_class('fpost') ?> id="post-<?php the_ID(); ?>">
        <?php //Set link to saved page on title
@@ -294,7 +295,7 @@ function target_ai_shortcode(){
         $link_redir = site_url().'/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
     }
     ?>
-          <h2><?php echo '<a href="'.$link_redir.'" >'.get_the_title().'</a>'; ?></h2>
+          <h2><?php if ($page_id) echo '<a href="'.$link_redir.'" >'.get_the_title().'</a>'; else echo  get_the_title(); ?></h2>
             <?php echo(get_the_date()); echo ('&nbsp;&middot&nbsp;'); 
             edit_post_link( '[Edit]', '', '');
 
@@ -451,7 +452,7 @@ function is_trainee($postid){
             FROM $ai_topic_tbl
             WHERE topic_name = '$tname'";
      $edit_vals = $wpdb->get_row($sql, ARRAY_A);
-     if ($edit_vals['topic_type'] != "Relevance") return 'No';
+     if ($edit_vals['topic_type'] != "Relevance") return 'Filter';
      
      // Check whether we have just one link
      if (count(mct_ai_getsavedpageid($postid)) != 1) return 'No';
@@ -488,7 +489,7 @@ function mct_ai_addtrain(){
     }
     //Is this post from MyCurator?
     $istrain = is_trainee($post->ID);
-    if ($istrain == 'No') return '';
+    
     
     // set up the training keys
     $retstr = '';
@@ -497,7 +498,26 @@ function mct_ai_addtrain(){
     $imgbad = plugins_url('thumbs_down.png',__FILE__);
     $imgtrash = plugins_url('trash_icon.png', __FILE__);
     
-    //Trained, but on training page, so just put out make live
+    if ($istrain == 'No' && $tgt) {  //Came from Getit
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.get_delete_post_link($post->ID).'" ><img src="'.$imgtrash.'" ></img></a>';
+        $move_uri = add_query_arg(array('move' => strval($post->ID)), $train_base);
+        $move_uri = wp_nonce_url($move_uri, 'mct_ai_move'.$post->ID);
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.$move_uri.'" >[Make Live]</a>';
+        return $retstr;
+    }
+    
+    if ($istrain == 'No') return '';
+    
+    //Filter type, so just put up trash and Make Live
+    if ($istrain == 'Filter' && $tgt) {
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.get_delete_post_link($post->ID).'" ><img src="'.$imgtrash.'" ></img></a>';
+        $move_uri = add_query_arg(array('move' => strval($post->ID)), $train_base);
+        $move_uri = wp_nonce_url($move_uri, 'mct_ai_move'.$post->ID);
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.$move_uri.'" >[Make Live]</a>';
+        return $retstr;
+    }
+    
+    //Trained, but on training page, so just put out make live (No and Filter are gone by now)
     if ($istrain != 'Yes' && $tgt) {
         $retstr .= '&nbsp; <a class="mct-ai-link" href="'.get_delete_post_link($post->ID).'" ><img src="'.$imgtrash.'" ></img></a>';
         $move_uri = add_query_arg(array('move' => strval($post->ID)), $train_base);
@@ -505,7 +525,7 @@ function mct_ai_addtrain(){
         $retstr .= '&nbsp; <a class="mct-ai-link" href="'.$move_uri.'" >[Make Live]</a>';
         return $retstr;
     }
-    if ($istrain != 'Yes') return '';
+    if ($istrain != 'Yes') return '';  //Already trained, so go
     
     if ($tgt && !$mct_ai_optarray['ai_keep_good_here']){
         $train_uri = add_query_arg(array('good' => strval($post->ID), 'move' => strval($post->ID)), $train_base);
@@ -674,7 +694,7 @@ function bwc_create_news(){
     <h2>Create Google News Feed or Twitter Search</h2>
     <?php 
     if (!empty($msg)){ ?>
-       <div id=”message” class="<?php echo $msgclass; ?>" ><p><strong><?php echo $msg ; ?></strong></p></div>
+       <div id="message" class="<?php echo $msgclass; ?>" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php } ?>    
     <p>Use this option to create a google news feed or twitter search that will be placed into your links for the link category you choose.  
         You can then use this

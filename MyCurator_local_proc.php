@@ -7,7 +7,6 @@
 //add action to set cache duration on simplepie
 add_action('wp_feed_options', 'mct_ai_set_simplepie');
 
-
 define ('MCT_AI_OLDPOSTSREAD', '7');
 //this should be shorter than the interval in which we run cron, but longer than the longest running time of the process
 define ('MCT_AI_PIE_CACHE',3600);  
@@ -50,6 +49,7 @@ function mct_ai_process_topic($topic){
     if (empty($sources)){
         return;  //Nothing to read
     }
+    
     foreach ($sources as $source){
         //For this source, get each feed
         $args = array(
@@ -253,17 +253,19 @@ function mct_ai_callcloud($type,$topic,$postvals){
         'args' => $postvals,
         'token' => $mct_ai_optarray['ai_cloud_token'],
         'type' => $type,
+        'utf8' => $mct_ai_optarray['ai_utf8'], //which 'word' processing to use
         'topic_id' => strval($topic['topic_id'])
         );
     $cloud_json = json_encode($cloud_data);
     
     $ch = curl_init();
     // SET URL FOR THE POST FORM LOGIN
-    curl_setopt($ch, CURLOPT_URL, 'http://tgtinfo.net');
+    curl_setopt($ch, CURLOPT_URL, 'http://tgtinfo.net'); 
     // ENABLE HTTP POST
     curl_setopt ($ch, CURLOPT_POST, 1);
     // SET POST FIELD to the content
     curl_setopt($ch, CURLOPT_REFERER, $ref);
+    curl_setopt($ch, CURLOPT_USERAGENT, $type);
     curl_setopt ($ch, CURLOPT_POSTFIELDS, $cloud_json);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(                                                                          
         'Content-Type: application/json',                                                                                
@@ -549,6 +551,7 @@ function mct_ai_clean_postsread($pread){
         mct_ai_log('Targets',MCT_AI_LOG_PROCESS, 'Deleted '.count($cols), '');
     }
 }
+
 
 function mct_ai_set_simplepie($args){
     //Set the cache duration
