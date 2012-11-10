@@ -13,8 +13,8 @@ content you want.
 
 == Description ==
 
-MyCurator is a complete content curation software tool for WordPress blogs.  
-MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts.  
+MyCurator is a complete content curation software tool for WordPress blogs. 
+MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts. 
 Rather than make you search for new content, it pushes the content it finds to the private training page on your site. 
 Each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
 right in the WordPress editor.  You can easily grab quotes and images for your curated post, adding your insights 
