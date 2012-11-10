@@ -277,7 +277,8 @@ function target_ai_shortcode(){
          }
          while (have_posts()) {
              the_post();
-?>             
+?>     
+
 <!-- post title -->
 <div <?php post_class('fpost') ?> id="post-<?php the_ID(); ?>">
        <?php //Set link to saved page on title
@@ -294,7 +295,7 @@ function target_ai_shortcode(){
         $link_redir = site_url().'/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
     }
     ?>
-          <h2><?php echo '<a href="'.$link_redir.'" >'.get_the_title().'</a>'; ?></h2>
+          <h2><?php if ($page_id) echo '<a href="'.$link_redir.'" >'.get_the_title().'</a>'; else echo  get_the_title(); ?></h2>
             <?php echo(get_the_date()); echo ('&nbsp;&middot&nbsp;'); 
             edit_post_link( '[Edit]', '', '');
 
@@ -488,7 +489,7 @@ function mct_ai_addtrain(){
     }
     //Is this post from MyCurator?
     $istrain = is_trainee($post->ID);
-    if ($istrain == 'No') return '';
+    
     
     // set up the training keys
     $retstr = '';
@@ -496,6 +497,16 @@ function mct_ai_addtrain(){
     $imggood = plugins_url('thumbs_up.png',__FILE__);
     $imgbad = plugins_url('thumbs_down.png',__FILE__);
     $imgtrash = plugins_url('trash_icon.png', __FILE__);
+    
+    if ($istrain == 'No' && $tgt) {  //Came from Getit
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.get_delete_post_link($post->ID).'" ><img src="'.$imgtrash.'" ></img></a>';
+        $move_uri = add_query_arg(array('move' => strval($post->ID)), $train_base);
+        $move_uri = wp_nonce_url($move_uri, 'mct_ai_move'.$post->ID);
+        $retstr .= '&nbsp; <a class="mct-ai-link" href="'.$move_uri.'" >[Make Live]</a>';
+        return $retstr;
+    }
+    
+    if ($istrain == 'No') return '';
     
     //Filter type, so just put up trash and Make Live
     if ($istrain == 'Filter' && $tgt) {

@@ -1,20 +1,21 @@
 === MyCurator ===
 Contributors: mtilly
 Donate link: 
-Tags: content curation, curation, content marketing, content management, content discovery, marketing, rss, instapaper, feed, feeds
+Tags: content curation, curation tools, curation software, content marketing, content management, content discovery, marketing, rss feed
 Requires at least: 3.1
 Tested up to: 3.4.2
-Stable tag: 1.1.4
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator is a complete content curation platform with a unique AI feed reader that learns to find just the 
+MyCurator is a complete content curation tool with a unique AI feed reader that learns to find just the 
 content you want. 
 
 == Description ==
 
-MyCurator is a complete content curation platform for WordPress blogs.  Rather than make you search for new content,
-MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts. 
+MyCurator is a complete content curation software tool for WordPress blogs.  
+MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts.  
+Rather than make you search for new content, it pushes the content it finds to the private training page on your site. 
 Each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
 right in the WordPress editor.  You can easily grab quotes and images for your curated post, adding your insights 
 and comments, quickly creating newly curated content for your blog.
@@ -34,6 +35,7 @@ overhead on your blog.
 * Attribution to the original article is automatically inserted into the curated post.
 * After training, you will typically see only 5 to 10 good articles out of 100 read by MyCurator.
 * Training is simple with a click of a thumbs up or thumbs down on each article.
+* MyCurator finds articles in any language, and all posts are in the native language of your blog.
 * Works with any RSS source of articles including Google alerts, blogs, news feeds even twitter searches.
 * Targeted news feeds and twitter searches can be created with MyCurator from within WordPress.
 * You can choose to automatically have the good articles posted to a specific category on your blog.
@@ -41,7 +43,7 @@ overhead on your blog.
 * Each article is saved as a readable page, like Instapaper, using Diffbot technology.
 
 MyCurator is free for individuals and non-profits, but you will have to obtain an API Key to access the 
-cloud services.  For businesses, those promoting products, internet marketers and higher volume users, low priced monthly plans are 
+cloud services.  For businesses, those promoting products, internet marketers and other heavy users, low priced monthly plans are 
 available - always with a free 30 day trial.  Visit http://www.target-info.com/ for more information.
 
 == Installation ==
@@ -59,19 +61,19 @@ the API Key field on the MyCurator Options menu item.
 
 = Does MyCurator work with most themes? =
 
-MyCurator creates a simple excerpted blog post, with a link to the saved, readable page.  It should work with most
+MyCurator creates a simple excerpted blog post, with a link to the original page.  It should work with most
 themes. Optionally, it will try to save an image from the article as the featured image for the post.
 
 = Does MyCurator work with Network Sites? =
 
 Yes, MyCurator works with Network sites.  You must have a key for each site.  Enterprise options are available 
-for businesses and larger sites that need many keys.  Visit http://www.target-info.com/hosted/ for more information.
+for businesses and larger sites that need many keys.
 
 = Does MyCurator work with other languages? =
 
 Yes, MyCurator will read and post articles written in other languages.  All characters in the UTF-8 encoding, the same
 used by WordPress, will be displayed.  You can customize the link to the original page to match your language.  
-The admin pages and the training videos are only in English at this time.
+The admin pages, documentation and the training videos are only in English at this time.
 
 = How often does MyCurator read my sources for articles? =
 
@@ -88,6 +90,12 @@ cloud services.
 3. New saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.2.0 =
+* New Get It Bookmarklet lets you save content as you browse the web on your computer, tablet or phone directly to your training page.  
+* Get It Bookmarklet <a href="http://www.target-info.com/training-videos/" />Training Video</a> and <a href="http://www.target-info.com/documentation-2/documentation-get-it/" >Documentation</a>
+* Ready for WordPress 3.5 - You must upgrade to version 1.2.0 or later for MyCurator to work with WordPress 3.5 as they are making changes to the Links pages.
+* Support for new pricing by Topic, see http://www.target-info.com/pricing/ and the MyCurator Topic pricing widget near the bottom of that page.
 
 = 1.1.4 =
 * Fixed problems with non-English characters in the Topic Keywords not matching articles.
