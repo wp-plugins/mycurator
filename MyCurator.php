@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -54,6 +54,9 @@ if (empty($mct_ai_optarray)){
         'ai_log_days' => 7,
         'ai_short_linkpg' => "1",
         'ai_show_orig' => "1",
+        'ai_keep_good_here' => "1",
+        'ai_edit_makelive' => "1",
+        'ai_save_thumb' => "1",
         'ai_train_days' => 7
     );
     update_option('mct_ai_options',$mct_ai_optarray);
@@ -153,9 +156,19 @@ function mct_ai_createmenu() {
     add_submenu_page(__FILE__,'Topic Sources Manager','Topic Source','manage_links',__FILE__.'_topicsource','mct_ai_topicsource');
     add_submenu_page(__FILE__,'Remove','Remove','manage_links',__FILE__.'_remove','mct_ai_removepage');
     add_submenu_page(__FILE__,'Options', 'Options','manage_links',__FILE__.'_options','mct_ai_optionpage');
-    add_submenu_page(__FILE__,'Get It', 'Get It','manage_links',__FILE__.'_getit','mct_ai_getitpage');
+    $getpage = add_submenu_page(__FILE__,'Get It & Source It', 'Get It & Source It','manage_links',__FILE__.'_getit','mct_ai_getitpage');
     add_submenu_page(__FILE__,'Logs','Logs','manage_links',__FILE__.'_Logs','mct_ai_logspage');
     add_submenu_page(__FILE__,'Report','Report','manage_links',__FILE__.'_Report','mct_ai_logreport');
+    
+    add_action('load-'.$getpage, 'mct_ai_queueit');
+}
+
+function mct_ai_queueit(){
+    //Queue needed scripts and styles
+    wp_enqueue_script('jquery-ui-tabs');
+    $style = plugins_url('css/MyCurator.css',__FILE__);
+    wp_register_style('myctabs',$style);
+    wp_enqueue_style('myctabs');
 }
 
 function mct_ai_firstpage() {
@@ -184,14 +197,9 @@ function mct_ai_firstpage() {
         $msg = 'Training Page has been created';
     }
     //Get training page link
-    $pages = get_pages(array('post_status' => 'publish,private'));
-    foreach ($pages as $page) {
-        if (stripos($page->post_content,"MyCurator_training_page") !== false) {
-            $trainpage = get_page_link($page->ID);
-            break;
-        }
-    }
-
+    $page =  mct_ai_get_trainpage();
+    if (!empty($page)) $trainpage = get_page_link($page->ID);
+ 
     ?>
     <div class='wrap' >
         <div class="postbox-container" style="width:70%;">
@@ -204,11 +212,12 @@ function mct_ai_firstpage() {
             <h3>Getting Started</h3>
             <ol>
                 <li>Check the requirements below to see if there are any problems</li>
+                <li>View our <a href="http://www.target-info.com/training-videos/" >Training Video</a> MyCurator Quick Start and begin curating in minutes</li>
                 <li>Set up your training page where MyCurator will post articles for your review (see below)</li>
                 <li>Get your API Key by following the Get API Key in the Important Links to the right</li>
                 <li>Go to the Options Menu Item and enter your MyCurator API Key</li>
-                <li>Review the video tutorials to learn how to set up MyCurator (see Training Videos link to the right)</li>
-                <li>Enter some sources into Links, Add a Topic and go!</li>
+                <li>Enter some sources into Links using our Source It tool, Add a Topic and go!</li>
+                <li>Review the video tutorials and documentation for more in-depth information (see documentation and training videos links to the right)</li>
                 <li>Go to Your Account at Target Info to upgrade your MyCurator API Key and review your purchase history</li>
             </ol>
             <h3>Requirements and Versions</h3>
@@ -385,7 +394,7 @@ function mct_ai_mainpage() {
                 echo('<tr>');
                 echo('<td><a href="'.$editpage.trim($row['topic_name']).'" >'.$row['topic_name'].'</a></td>');
                 echo('<td>'.$row['topic_type'].'</td>');
-                echo('<td>'.$row['topic_status'].'</td>');
+                echo('<td>'.mct_ai_status_display($row['topic_status'],'display').'</td>');
                 echo('<td>'.get_cat_name($row['topic_cat']).'</td>');
                 $tagterm = get_term($row['topic_tag'],'post_tag');
                 if (!empty($tagterm)) echo('<td>'.$tagterm->name.'</td>');
@@ -407,13 +416,14 @@ function mct_ai_mainpage() {
 
 function mct_ai_topicpage() {
     //This function creates the New/Edit topic page
-    global $wpdb, $ai_topic_tbl;
+    global $wpdb, $ai_topic_tbl, $mct_ai_optarray;
 
     //Initialize some variables
     $pagetitle = 'New Topic';
     $update_type = 'false';  //set up for insert
     $msg = '';
     $topic_name = '';
+    $createcat = '';
     $error_flag = false;
     $edit_vals = array();
     $do_report = false;
@@ -458,7 +468,7 @@ function mct_ai_topicpage() {
         }
         $edit_vals = array (
             'topic_type' => trim(sanitize_text_field($_POST['topic_type'])),
-            'topic_status' => trim(sanitize_text_field($_POST['topic_status'])), 
+            'topic_status' => mct_ai_status_display(trim($_POST['topic_status']),'db'), 
             'topic_search_1' => trim(sanitize_text_field(stripslashes($_POST['topic_search_1']))),
             'topic_search_2' => trim(sanitize_text_field(stripslashes($_POST['topic_search_2']))),
             'topic_exclude' => trim(sanitize_text_field(stripslashes($_POST['topic_exclude']))),
@@ -472,13 +482,17 @@ function mct_ai_topicpage() {
         // Get category create name
         $createcat = trim(sanitize_text_field($_POST['topic_createcat']));
         //Get the topic name and validate
-        $topic_name = trim(sanitize_text_field($_POST['topic_name']));
+        $topic_name = $edit_vals['topic_name'] = trim(sanitize_text_field($_POST['topic_name']));
         if ($topic_name == '') {
             $msg = 'Must have a Topic Name';
             $error_flag = true;
         } else {
-            if (preg_match('{^[a-zA-Z0-9-_\s]+$}',$topic_name) != 1) $error_flag = true;
-            if ($error_flag) $msg = "Topic Name may only contain characters, numbers, -, _ and spaces";
+            if (isset($mct_ai_optarray['ai_utf8']) && $mct_ai_optarray['ai_utf8']) {
+                if (preg_match('{^[-\p{L}\p{N}\s]+$}u',$topic_name) != 1) $error_flag = true;
+            } else {
+                if (preg_match('{^[-a-zA-Z0-9\s]+$}',$topic_name) != 1) $error_flag = true;
+            }
+            if ($error_flag) $msg = "Topic Name may not contain special characters, just letters, - and numbers. ";
         }
         if (!$error_flag) {
             //Create Slug if needed
@@ -528,27 +542,19 @@ function mct_ai_topicpage() {
                 WHERE topic_name = '$tname'";
         $edit_vals = $wpdb->get_row($sql, ARRAY_A);
         //Set status dropdown
-        $stat = $edit_vals['topic_status'];
+        $curstat = mct_ai_status_display($edit_vals['topic_status'],'display');
         $typ = $edit_vals['topic_type'];
-        $status_vals = array ($stat);
-        switch ($stat) {
-            case 'Inactive': 
-                $status_vals[] = 'Training';
-                break;
-            case 'Training':
-                $status_vals[] = 'Inactive';
-                $status_vals[] = 'Active';
-                break;
-            case 'Active':
-                $status_vals[] = 'Inactive';
-                $status_vals[] = 'Training';
-                break;
-        }
+        $status_vals = array (
+            mct_ai_status_display('Inactive','display'),
+            mct_ai_status_display('Training','display'),
+            mct_ai_status_display('Active','display')
+        );
+
         //Set up cat/tag dropdown
         $cats['selected'] = $edit_vals['topic_cat'];
         $tags['selected'] = $edit_vals['topic_tag'];
         //Set up Relevance report
-        if ($typ == 'Relevance'  && $stat != 'Inactive' && current_user_can('manage_options')){
+        if ($typ == 'Relevance'  && $curstat != 'Inactive' && current_user_can('manage_options')){
             $rel = new Relevance();
             $rpt = $rel->report($tname);
             if (!empty($rpt)) $do_report = true;
@@ -558,8 +564,8 @@ function mct_ai_topicpage() {
         $sources = array_map('trim',explode(',',$edit_vals['topic_sources']));
     } else {
         //New topic, if error, don't reset values
+        $curstat = mct_ai_status_display('Training','display');
         if (empty($edit_vals)){
-            $edit_vals['topic_status'] = 'Training';  //Set defaults
             $edit_vals['topic_type'] = 'Relevance';
             $edit_vals['topic_tag_search2'] = '1';  //Default to use as tags
             $edit_vals['topic_name'] = '';
@@ -580,8 +586,10 @@ function mct_ai_topicpage() {
             //Set up sources checkboxes
             $sources = array_map('trim',explode(',',$edit_vals['topic_sources']));            
         }
-        $status_vals[] = 'Inactive';
-        $status_vals[] = 'Training';
+        $status_vals = array (
+            mct_ai_status_display('Inactive','display'),
+            mct_ai_status_display('Training','display')
+        );
     }
     //Render page
     ?>
@@ -663,7 +671,7 @@ function mct_ai_topicpage() {
                    <th scope="row">Topic Status</th>
                    <td><select name="topic_status" >
                 <?php foreach ($status_vals as $stat) {
-                        echo('<option value="'.$stat.'" '.selected($edit_vals['topic_status'],$stat).'>'.$stat.'</option>' );
+                        echo('<option value="'.$stat.'" '.selected($curstat,$stat).'>'.$stat.'</option>' );
                       }
                 ?>
                 </select></td>
@@ -734,6 +742,16 @@ function mct_ai_topicpage() {
        </form> 
     </div>
 <?php
+}
+
+function mct_ai_status_display($status,$ret){
+    //Convert statuses into 'db' or 'display' values 
+    if ($status == 'Inactive') return 'Inactive';  //Always the same
+    if ($ret == 'db') {
+        return ($status == 'Manual Curation - Training') ? 'Training' : 'Active';
+    } else {
+        return ($status == 'Training') ? 'Manual Curation - Training' : 'Auto Post Good - Active';
+    }
 }
 
 function mct_ai_optionpage() {
@@ -1056,50 +1074,104 @@ function mct_ai_getitpage() {
     //Page to set up the get-it bookmarklet
     require_once('./admin.php');
 
-    $title = 'Get It';
+    $title = 'Get It & Source It Bookmarklets';
 
     require_once('./admin-header.php');
-
+    $source_it = get_js_code();
+    $source_it = str_replace("_getit.","_sourceit.",$source_it);
+    
     ?>
+    <script>
+    //<![CDATA[
+    jQuery(function() {
+        jQuery( ".mct-ai-tabs #tabs" ).tabs();
+    });
+    //]]>
+    </script>
     <div class="wrap">
     <?php screen_icon('tools'); ?>
     <h2><?php echo esc_html( $title ); ?></h2>
 
     <?php if ( current_user_can('edit_posts') ) : ?>
-    <div class="tool-box">
-            <p><?php _e('Get It is a bookmarklet: a little app that runs in your browser and lets you grab bits of the web. See the new Get It <a href="http://www.target-info.com/training-videos/" />Training Video</a>');?></p>
-            <p><?php _e('Use Get It to save articles to your training page as you are reading them in your browser or iPad!
-                Now you can add all of the content you find while browsing the web, twitter and your social networks.  The content you 
-                discover on your own can be posted right into the training page along with all of the content that MyCurator has discovered.  No 
-                matter how you source it, MyCurator is your central repository for good content.');?></p>
-            <p><?php _e('After installing the Get It bookmarklet, whenever you see an article or blog post you would like to curate to your site,
-                just click the Get It bookmark, choose the Topic for this article and click Save.  The article will be posted to your 
-                training page as "not sure", with an excerpt and the attribution links.  The full readable page will be saved and you can use the 
-                new article to train MyCurator as well as curate it onto your live blog.'); ?></p>
-            <p><?php _e('If MyCurator cannot grab the full text, it will post the article to the training page with the title and a link to the 
-                original web page.  You can still curate the article to your live blog, but you will not have the full text and images in the
-                WordPress post editor.');?></p>
-            <h3>PC/Mac Instructions</h3>
-            <p class="description"><?php _e('Drag-and-drop the following link to your bookmarks bar') ?></p>
-            <p class="pressthis"><a onclick="return false;" href="<?php echo htmlspecialchars( get_js_code() ); ?>"><span><?php _e('Get It') ?></span></a></p>
-            <div class="pressthis-code" >
-            <p class="description"><?php _e('If your bookmarks toolbar is hidden or your browser does not allow you to drag and drop the link then:') ?></p>
-            <p class="description"><?php _e('Highlight the Bookmark code in the box below then Ctrl-c/Command-c to copy the code. Open your Bookmarks/Favorites manager and create a new bookmark/favorite. Edit the name to Get It and save.  
-                Click Manage/Organize Bookmarks/Favorites and edit the Get It entry you just created.  Paste the code into the URL/Location/Address field using Ctrl-v/Command-v.
-                Save the entry') ?></p>
-            <p><textarea rows="6" cols="120" ><?php echo htmlspecialchars( get_js_code() ); ?></textarea></p>
-            <h3>iPhone or iPad Instructions</h3>
-            <p class="description"><?php _e('Touch the code box above once (keyboard appears) then touch and hold until the magnifier 
-                appears and choose Select All then Copy.  
-                Add a Bookmark and set the title to Get It then save.  Now touch the bookmarks option again and choose Edit bookmarks from the top right.
-                and select the Get It bookmark you just created.
-                Touch the location box then the x and remove the old location.  Now Touch and Paste your previous copy into the bookmark.  
-                Press the Bookmarks button at the top to finish editing and then touch done in the upper right.') ?></p>
-            <h3>Android Phone/Tablet Instructions</h3>
-            <p class="description"><?php _e('Touch the code box above until the Edit Text menu appears, 
-                choose Copy All.  Touch the menu and choose Add Bookmark.  Edit the title to Get It then touch the Location box 
-                until the Edit Text menu appears.  Choose Paste then Done to save the bookmark') ?></p>
+    <div class="mct-ai-tabs" >
+     <div id="tabs">
+        <ul>
+        <li><a href="#tabs-1">Get It</a></li>
+        <li><a href="#tabs-2">Source It</a></li>
+        </ul>
+        <div id="tabs-1">
+            <h2>Get It</h2>
+                <p><?php _e('Get It is a bookmarklet: a little app that runs in your browser and lets you grab bits of the web. See the new Get It <a href="http://www.target-info.com/training-videos/" />Training Video</a>');?></p>
+                <p><?php _e('Use Get It to save articles to your training page as you are reading them in your browser or iPad!
+                    Now you can add all of the content you find while browsing the web, twitter and your social networks.  The content you 
+                    discover on your own can be posted right into the training page along with all of the content that MyCurator has discovered.  No 
+                    matter how you source it, MyCurator is your central repository for good content.');?></p>
+                <p><?php _e('After installing the Get It bookmarklet, whenever you see an article or blog post you would like to curate to your site,
+                    just click the Get It bookmark, choose the Topic for this article and click Save.  The article will be posted to your 
+                    training page as "not sure", with an excerpt and the attribution links.  The full readable page will be saved and you can use the 
+                    new article to train MyCurator as well as curate it onto your live blog.'); ?></p>
+                <p><?php _e('If MyCurator cannot grab the full text, it will post the article to the training page with the title and a link to the 
+                    original web page.  You can still curate the article to your live blog, but you will not have the full text and images in the
+                    WordPress post editor.');?></p>
+                <h3>PC/Mac Instructions</h3>
+                <p class="description"><?php _e('Drag-and-drop the following link to your bookmarks bar') ?></p>
+                <p class="pressthis"><a onclick="return false;" href="<?php echo htmlspecialchars( get_js_code() ); ?>"><span><?php _e('Get It') ?></span></a></p>
+               
+                <p class="description"><?php _e('If your bookmarks toolbar is hidden or your browser does not allow you to drag and drop the link then:') ?></p>
+                <p class="description"><?php _e('Highlight the Bookmark code in the box below then Ctrl-c/Command-c to copy the code. Open your Bookmarks/Favorites manager and create a new bookmark/favorite. Edit the name to Get It and save.  
+                    Click Manage/Organize Bookmarks/Favorites and edit the Get It entry you just created.  Paste the code into the URL/Location/Address field using Ctrl-v/Command-v.
+                    Save the entry') ?></p>
+                <p><textarea rows="6" cols="120" ><?php echo htmlspecialchars( get_js_code() ); ?></textarea></p>
+                <h3>iPhone or iPad Instructions</h3>
+                <p class="description"><?php _e('Touch the code box above once (keyboard appears) then touch and hold until the magnifier 
+                    appears and choose Select All then Copy.  
+                    Add a Bookmark and set the title to Get It then save.  Now touch the bookmarks option again and choose Edit bookmarks from the top right.
+                    and select the Get It bookmark you just created.
+                    Touch the location box then the x and remove the old location.  Now Touch and Paste your previous copy into the bookmark.  
+                    Press the Bookmarks button at the top to finish editing and then touch done in the upper right.') ?></p>
+                <h3>Android Phone/Tablet Instructions</h3>
+                <p class="description"><?php _e('Touch the code box above until the Edit Text menu appears, 
+                    choose Copy All.  Touch the menu and choose Add Bookmark.  Edit the title to Get It then touch the Location box 
+                    until the Edit Text menu appears.  Choose Paste then Done to save the bookmark') ?></p>
             </div>
+            <div id="tabs-2">
+            <h2>Source It</h2>
+                <p><?php _e('Source It is a bookmarklet: a little app that runs in your browser and lets you grab feeds directly from a site! 
+                    See the <a href="http://www.target-info.com/training-videos/" />Training Video</a>');?></p>
+                <p><?php _e('Use Source It to grab a feed and load it into your Links area when you are visiting a site that you want MyCurator
+                    to read each day.  Source It can also easily grab a Google Alerts feed.');?></p>
+                <p><?php _e('After installing the Source It bookmarklet, whenever you see a site whose feed you want to save to your Sources,
+                    just click the Source It bookmark, change the title if you want, choose the Link Category for the feed or add a New Link Category, then click Save. 
+                    The feed URL will be saved in your Links page, with the Link Category you designated.  MyCurator will now use this Source
+                    for any Topics that use the designated Link Category of the feed'); ?></p>
+                <p><?php _e('To save a Google Alert, go to your Google Alert account and click Manage Alerts.  You will see a list of all of your alerts.
+                    Click on the feed symbol for the alert you wish to add.  Another tab will open up in your browser showing the raw feed information.
+                    At this point click Source It.  Enter a name for this feed and choose a Link Category (or add a new Link Category).  Press Save 
+                    and the alert will be stored in your Links.');?></p>
+                <p><?php _e('If Source It cannot grab a feed from the site, you will see an error message.  You can try to manually find the feed and add it.');?></p>
+                <h3>PC/Mac Instructions</h3>
+                <p class="description"><?php _e('Drag-and-drop the following link to your bookmarks bar') ?></p>
+                <p class="pressthis"><a onclick="return false;" href="<?php echo htmlspecialchars( $source_it ); ?>"><span><?php _e('Source It') ?></span></a></p>
+               
+                <p class="description"><?php _e('If your bookmarks toolbar is hidden or your browser does not allow you to drag and drop the link then:') ?></p>
+                <p class="description"><?php _e('Highlight the Bookmark code in the box below then Ctrl-c/Command-c to copy the code. Open your Bookmarks/Favorites manager and create a new bookmark/favorite. Edit the name to Source It and save.  
+                    Click Manage/Organize Bookmarks/Favorites and edit the Source It entry you just created.  Paste the code into the URL/Location/Address field using Ctrl-v/Command-v.
+                    Save the entry') ?></p>
+                <p><textarea rows="6" cols="120" ><?php echo htmlspecialchars( $source_it ); ?></textarea></p>
+                <h3>iPhone or iPad Instructions</h3>
+                <p class="description"><?php _e('Touch the code box above once (keyboard appears) then touch and hold until the magnifier 
+                    appears and choose Select All then Copy.  
+                    Add a Bookmark and set the title to Source it It then save.  Now touch the bookmarks option again and choose Edit bookmarks from the top right.
+                    and select the Source It bookmark you just created.
+                    Touch the location box then the x and remove the old location.  Now Touch and Paste your previous copy into the bookmark.  
+                    Press the Bookmarks button at the top to finish editing and then touch done in the upper right.') ?></p>
+                <h3>Android Phone/Tablet Instructions</h3>
+                <p class="description"><?php _e('Touch the code box above until the Edit Text menu appears, 
+                    choose Copy All.  Touch the menu and choose Add Bookmark.  Edit the title to Source It then touch the Location box 
+                    until the Edit Text menu appears.  Choose Paste then Done to save the bookmark') ?></p>
+            </div>
+        </div>
+    </div>
     </div>
     <?php
     endif;

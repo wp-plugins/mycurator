@@ -2,49 +2,44 @@
 Contributors: mtilly
 Donate link: 
 Tags: content curation, curation tools, curation software, content marketing, content management, content discovery, marketing, rss feed
-Requires at least: 3.1
+Requires at least: 3.3
 Tested up to: 3.4.2
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator is a complete content curation tool with a unique AI feed reader that learns to find just the 
+MyCurator is a complete content curation tool with a unique AI feed reader that learns to discover just the 
 content you want. 
 
 == Description ==
 
-MyCurator is a complete content curation software tool for WordPress blogs. 
+MyCurator is a complete content curation platform for WordPress blogs. 
 MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts. 
-Rather than make you search for new content, it pushes the content it finds to the private training page on your site. 
+Rather than make you search for new content, it pushes personalized, targeted content to the private training page on your site. 
 Each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
 right in the WordPress editor.  You can easily grab quotes and images for your curated post, adding your insights 
 and comments, quickly creating newly curated content for your blog.
 
-Like a personal assistant, MyCurator uses AI software learning techniques to weed out 90% or more 
-of the articles in your feeds, alerts and blogs, focusing on topics you've trained it to follow. 
-This can save you hours every day. You can choose to automatically have the good articles posted 
-to a specific category on your blog. Or you may choose to manually curate the best insights from 
-the articles into your own blog posts.
+Find out more on <a href="http://www.target-info.com/mycurator/" >MyCurator</a> and <a href="http://www.target-info.com/" >Content Curation</a>.
 
-MyCurator started as a hosted offering for businesses who provided targeted articles and insights to their 
-customers to drive engagement and customer retention.  As a Wordpress plugin, MyCurator connects to the same 
-cloud process that powers the hosted business sites.  This allows MyCurator to maintain a low processing 
-overhead on your blog.
-
+* Like a personal assistant, MyCurator saves you hours per day discovering content on the web, pushing it to your private training page
+* Simply train with thumbs up/down and weed out off-topic and spam articles
 * The full text and all images for each article are available as a meta box in the WordPress post editor.
 * Attribution to the original article is automatically inserted into the curated post.
-* After training, you will typically see only 5 to 10 good articles out of 100 read by MyCurator.
-* Training is simple with a click of a thumbs up or thumbs down on each article.
+* A bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
 * MyCurator finds articles in any language, and all posts are in the native language of your blog.
-* Works with any RSS source of articles including Google alerts, blogs, news feeds even twitter searches.
-* Targeted news feeds and twitter searches can be created with MyCurator from within WordPress.
+* Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
+* Source It Bookmarklet to easily capture feeds.
 * You can choose to automatically have the good articles posted to a specific category on your blog.
 * Or you may choose to manually curate the best insights from the articles into your own blog posts.
 * Each article is saved as a readable page, like Instapaper, using Diffbot technology.
 
+MyCurator is powerful corporate level software brought to you as a plugin.  It uses a cloud process to perform 
+intensive AI processing and article classification.  This allows MyCurator to maintain a low processing overhead on your blog.
+
 MyCurator is free for individuals and non-profits, but you will have to obtain an API Key to access the 
 cloud services.  For businesses, those promoting products, internet marketers and other heavy users, low priced monthly plans are 
-available - always with a free 30 day trial.  Visit http://www.target-info.com/ for more information.
+available - always with a free 30 day trial.  Visit http://www.target-info.com/pricing/ for more information.
 
 == Installation ==
 
@@ -90,6 +85,14 @@ cloud services.
 3. New saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.2.1 =
+* Multi article curation has been enabled with a new [Multi] training tag.  Bring several articles at once into your WordPress editor for round-up, weekly highlighs and other complex curations.
+* New Source It Bookmarklet tool to add feeds to your Links Sources with just a click. 
+* New Sources Quick Add to use instead of Add New Links for faster manual source entry.
+* Stay in position on training page after using training tags
+* Expanded Topic status to highlight Manual Curation vs Auto Post status
+* Initial options are set for manual curation when first installed.
 
 = 1.2.0 =
 * New Get It Bookmarklet lets you save content as you browse the web on your computer, tablet or phone directly to your training page.  

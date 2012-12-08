@@ -257,7 +257,8 @@ function mct_ai_callcloud($type,$topic,$postvals){
         'topic_id' => strval($topic['topic_id'])
         );
     $cloud_json = json_encode($cloud_data);
-    
+    $useragent = $type;
+    if (isset($postvals['getit'])) $useragent .= " GetIt";
     $ch = curl_init();
     // SET URL FOR THE POST FORM LOGIN
     curl_setopt($ch, CURLOPT_URL, 'http://tgtinfo.net'); 
@@ -265,7 +266,7 @@ function mct_ai_callcloud($type,$topic,$postvals){
     curl_setopt ($ch, CURLOPT_POST, 1);
     // SET POST FIELD to the content
     curl_setopt($ch, CURLOPT_REFERER, $ref);
-    curl_setopt($ch, CURLOPT_USERAGENT, $type);
+    curl_setopt($ch, CURLOPT_USERAGENT, $useragent);
     curl_setopt ($ch, CURLOPT_POSTFIELDS, $cloud_json);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(                                                                          
         'Content-Type: application/json',                                                                                
