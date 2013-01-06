@@ -7,7 +7,6 @@
 //add action to set cache duration on simplepie
 add_action('wp_feed_options', 'mct_ai_set_simplepie');
 
-
 define ('MCT_AI_OLDPOSTSREAD', '7');
 //this should be shorter than the interval in which we run cron, but longer than the longest running time of the process
 define ('MCT_AI_PIE_CACHE',3600);  
@@ -50,6 +49,7 @@ function mct_ai_process_topic($topic){
     if (empty($sources)){
         return;  //Nothing to read
     }
+    
     foreach ($sources as $source){
         //For this source, get each feed
         $args = array(
@@ -154,8 +154,13 @@ function mct_ai_get_page($item, $topic, &$post_arr){
         $desc = $item->get_description();
         $cnt = preg_match('{http://t.co/([^"]*)"}',$desc,$matches);
         if ($cnt) {
-            $ilink = trim('http://t.co/'.$matches[1]);  //get just first link
+            $elink = $ilink = trim('http://t.co/'.$matches[1]);  //get just first link
             $ilink = mct_ai_tw_expandurl($ilink);
+            if ($ilink == '') {
+                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, "Could Not Resolve Twitter Link",$elink);
+                return '';
+            }
+            //mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'Twitter Article Found',$ilink);
         } else {
             return '';  //No link found
         }
@@ -253,22 +258,35 @@ function mct_ai_callcloud($type,$topic,$postvals){
         'args' => $postvals,
         'token' => $mct_ai_optarray['ai_cloud_token'],
         'type' => $type,
+        'utf8' => $mct_ai_optarray['ai_utf8'], //which 'word' processing to use
+        'gzip' => 1, //enable compression
         'topic_id' => strval($topic['topic_id'])
         );
     $cloud_json = json_encode($cloud_data);
-    
+    //compression/header
+    if (strlen($cloud_json) > 1000) {
+        $cloud_json = gzcompress($cloud_json);
+        $hdr = array(                                                                          
+        'Content-Type: application/json',                                                                                
+        'Content-Length: ' . strlen($cloud_json),
+        'Content-Encoding: gzip');
+    } else {
+        $hdr = array(                                                                          
+        'Content-Type: application/json',                                                                                
+        'Content-Length: ' . strlen($cloud_json));
+    }
+    $useragent = $type;
+    if (isset($postvals['getit'])) $useragent .= " GetIt";
     $ch = curl_init();
     // SET URL FOR THE POST FORM LOGIN
-    curl_setopt($ch, CURLOPT_URL, 'http://tgtinfo.net');
+    curl_setopt($ch, CURLOPT_URL, 'http://tgtinfo.net'); //'http://tgtinfo.net'
     // ENABLE HTTP POST
     curl_setopt ($ch, CURLOPT_POST, 1);
     // SET POST FIELD to the content
     curl_setopt($ch, CURLOPT_REFERER, $ref);
+    curl_setopt($ch, CURLOPT_USERAGENT, $useragent);
     curl_setopt ($ch, CURLOPT_POSTFIELDS, $cloud_json);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array(                                                                          
-        'Content-Type: application/json',                                                                                
-        'Content-Length: ' . strlen($cloud_json))                                                                       
-    );                                    
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $hdr);                                                                       
     //Force curl to return results and not display
     curl_setopt ($ch, CURLOPT_RETURNTRANSFER, 1);
     // EXECUTE REQUEST
@@ -284,6 +302,9 @@ function mct_ai_callcloud($type,$topic,$postvals){
         return false;
     } 
     //Cloud Response holds the returned Json data, decode and return
+    if (stripos($curlinfo['content_type'],'gzip')!== false) {
+        $cloud_response = gzuncompress($cloud_response);
+    }
     $json_response = json_decode($cloud_response);
     if ($json_response == NULL) {
         mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, 'Invalid JSON Object Returned',$type);
@@ -344,22 +365,19 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         $link_redir = site_url().'/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
     }
     //Set up the content
-    mct_ai_getpostcontent($page, $post_arr);
+    mct_ai_getpostcontent($page, $post_arr,$topic['topic_type']);
     if ($mct_ai_optarray['ai_show_orig']){
-        $post_content = $post_arr['article'].'<br />'.$post_arr['orig_link'];
-        if (!empty($mct_ai_optarray['ai_orig_text'])) {
-            $post_content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$post_content);
-        }
+        $post_arr['orig_link'] = mct_ai_formatlink($post_arr);
+        $post_content = $post_arr['article'].'<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>';
+        $post_content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$post_content);
     } else {
-        $post_content = $post_arr['article'].'<br /><a href="'.$link_redir.'" >Click here to view full article</a>';
-        if (!empty($mct_ai_optarray['ai_save_text'])) {
-            $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
-        }
+        $post_content = $post_arr['article'].'<p id="mct-ai-attriblink"><a href="'.$link_redir.'" >Click here to view full article</a></p>';
+        $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
     }
     $post_content = apply_filters('mct_ai_postcontent',$post_content);
     // Get an image if we can - 1st match of appropriate size
     $image = '';
-    if ($mct_ai_optarray['ai_save_thumb']) {
+    if ($mct_ai_optarray['ai_save_thumb']  || (isset($mct_ai_optarray['ai_post_img']) && $mct_ai_optarray['ai_post_img'] )) {
         $regexp1 = '{<img [^>]*src\s*=\s*("|\')([^"\']*)("|\')[^>]*>}i'; 
         $pos = preg_match_all($regexp1,$page,$matchall, PREG_SET_ORDER);
         if ($pos) {
@@ -374,26 +392,23 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     }
     //Set up the values, not set are defaults
     //Check for a user, if not we are in cron process so set  user for the site
-    $pa = $user_id;
-    if (!$pa){
-        if (empty($mct_ai_optarray['ai_post_user'])) {
-            $useradms = get_users(array('role' => 'administrator'));
-            if (empty($useradms)){
-                $pa = 1;
-            } else {
-                $first = $useradms[0];
-                $pa = $first->ID;
-            }
+    if (isset($mct_ai_optarray['ai_post_user']) && $mct_ai_optarray['ai_post_user']) {
+        $useris = get_user_by('login',$mct_ai_optarray['ai_post_user']);
+        if ($useris) {
+            $pa = $useris->ID;
         } else {
-            $useris = get_user_by('login',$mct_ai_optarray['ai_post_user']);
-            if ($useris) {
-                $pa = $useris->ID;
-            } else {
-                $pa = 1;
-            }
+            $pa = 1;
         }
-        wp_set_current_user($pa);
-    } 
+    } else {        
+        $useradms = get_users(array('role' => 'administrator'));
+        if (empty($useradms)){
+            $pa = 1;
+        } else {
+            $first = $useradms[0];
+            $pa = $first->ID;
+        }
+    }
+    wp_set_current_user($pa);
     $details = array(
       'post_content'  => $post_content,
       'post_author' => $pa,
@@ -411,7 +426,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         $details['post_excerpt'] = $post_content;
     }
     //Use topic & aiclass in all cases
-    if ($topic['topic_type'] == 'Filter'){
+    if ($topic['topic_type'] != 'Relevance'){
         $details['tax_input'] = array (  //add topic name 
         'topic' => $topic['topic_name']
         );
@@ -465,17 +480,38 @@ function mct_ai_post_entry($topic, $post_arr, $page){
             'dbsize' => sprintf('%.0f',$post_arr['dbsize'])
         ));
     }
-    //update the image if found as the featured image for the post
-    if (!empty($image)){
+    //update the image if found as the featured image for the post -  not if a video though
+    if (!empty($image) && $topic['topic_type'] != 'Video'){
         $thumb_id = mct_ai_postthumb($image,$post_id);
-        if ($thumb_id) update_post_meta( $post_id, '_thumbnail_id', $thumb_id );
+    }
+    if ($thumb_id) {  
+        if ($mct_ai_optarray['ai_save_thumb']) update_post_meta( $post_id, '_thumbnail_id', $thumb_id );
+        //Add image to start of post if set
+        if (isset($mct_ai_optarray['ai_post_img']) && $mct_ai_optarray['ai_post_img'] ){
+            $details = array();
+            $url = wp_get_attachment_url($thumb_id);
+            $align = $mct_ai_optarray['ai_img_align'];
+            $size = $mct_ai_optarray['ai_img_size'];
+            $src = wp_get_attachment_image_src($thumb_id,$size);
+            if (!$src) {
+                $src = wp_get_attachment_image_src($thumb_id,'thumbnail');  //try thumbnail
+                if (!$src) wp_get_attachment_image_src($thumb_id,'full');  //try full size
+            }
+            if ($src) {
+                $imgstr = '<a href="'.$url.'"><img class="size-'.$size.' align'.$align.'" alt="" src="'.$src[0].'" width="'.$src[1].'" height="'.$src[2].'" /></a>';
+                $details['post_content'] = $imgstr.$post_content;
+                $details['ID'] = $post_id;
+                wp_update_post($details);
+            }
+            
+        }
     }
     //update the saved page with the post id
     $wpdb->update($ai_sl_pages_tbl, array('sl_post_id' => $post_id), array ('sl_page_id' => $page_id));
     mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'New '.$post_msg.' post',$post_arr['current_link']);
 }
 
-function mct_ai_getpostcontent($page, &$post_arr){
+function mct_ai_getpostcontent($page, &$post_arr, $type){
     //Grab the post content out of the rendered page
     global $mct_ai_optarray;
     $excerpt_length = $mct_ai_optarray['ai_excerpt'];
@@ -491,8 +527,32 @@ function mct_ai_getpostcontent($page, &$post_arr){
     $post_arr['title'] = $title;  //save title 
     // Get original URL
     $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
-    $post_arr['orig_link'] = $matches[1].'> '.$matches[2].'</a>';
+    if (isset($mct_ai_optarray['ai_new_tab']) && $mct_ai_optarray['ai_new_tab'] ) {
+        $post_arr['orig_link'] = $matches[1].' target="_blank"> '.$matches[2].'</a>';
+    } else {
+        $post_arr['orig_link'] = $matches[1].'> '.$matches[2].'</a>';
+    }
     //Now get article content
+    if ($type == 'Video' && isset($mct_ai_optarray['ai_embed_video']) && $mct_ai_optarray['ai_embed_video'] ) {
+        //Embed the iframe into article
+        $pos = preg_match('{<iframe title="Video Player"[^>]*>}',$page,$matches);
+        if ($pos) {
+            $post_arr['article'] = $matches[0]."</iframe><br />"; //embed the iframe
+            $post_arr['article'] = str_replace('width="250"', 'width="'.$mct_ai_optarray['ai_video_width'].'"',$post_arr['article']);
+            $post_arr['article'] = str_replace('height="250"', 'height="'.$mct_ai_optarray['ai_video_height'].'"',$post_arr['article']);
+            //try to get rid of any autoplay tags
+            $pos = preg_match('{src="([^"]*)"}',$post_arr['article'],$matches);
+            if ($pos){
+                $pos = stripos($matches[1],'autoplay'); //match on lowercase
+                if ($pos){
+                    $qstr = substr($matches[1],$pos,8);//Not sure what is capitalized, so get original
+                    $newstr = remove_query_arg($qstr,$matches[1]);
+                    $post_arr['article'] = preg_replace('{(src=")([^"]*)(")}','$1'.$newstr.'$3',$post_arr['article']);
+                }
+            }
+            return;
+        }
+    }
     $article = preg_replace('@<style[^>]*>[^<]*</style>@i','',$article);  //remove style tags
     $article = preg_replace('{<([^>]*)>}',' ',$article);  //remove tags but leave spaces
     //$article = preg_replace('{&[a-z]*;}',"'",$article);  //remove any encoding
@@ -509,8 +569,33 @@ function mct_ai_getpostcontent($page, &$post_arr){
             array_push($words, '[...]');
             $excerpt = implode(' ', $words);
     }
-    $post_arr['article'] = '<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';  //save article
+    if (isset($mct_ai_optarray['ai_no_quotes']) && $mct_ai_optarray['ai_no_quotes'] ) {
+        $post_arr['article'] = '<p id="mct_ai_excerpt">'.$excerpt.'</p>';  //save article
+    } else {
+        $post_arr['article'] = '<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';  //save article
+    }
     
+}
+
+function mct_ai_formatlink($post_arr){
+    //Format link based on options
+    global $mct_ai_optarray;
+    
+    $link = $post_arr['orig_link'];
+    $title = $post_arr['title'];
+    $intro = "Click here to view original web page at ";
+    $cnt = preg_match('{^(<a[^>]*>)([^<]*)(</a>)$}',$link,$matches);
+    $anchor = str_replace($intro,"",$matches[2]);
+    
+    if (isset($mct_ai_optarray['ai_post_title']) && $mct_ai_optarray['ai_post_title'] ){
+        $anchor = $title;
+    }
+    if (isset($mct_ai_optarray['ai_no_anchor']) && $mct_ai_optarray['ai_no_anchor'] ){
+        return $intro.$matches[1].$anchor."</a>";
+    } else {
+        return $matches[1].$intro.$anchor."</a>";
+    }
+    return $link;
 }
 
 function mct_ai_clean_postsread($pread){
@@ -549,6 +634,7 @@ function mct_ai_clean_postsread($pread){
         mct_ai_log('Targets',MCT_AI_LOG_PROCESS, 'Deleted '.count($cols), '');
     }
 }
+
 
 function mct_ai_set_simplepie($args){
     //Set the cache duration
