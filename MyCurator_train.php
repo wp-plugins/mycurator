@@ -86,7 +86,17 @@ function mct_ai_movepost($thepost){
                 $details['tags_input'] = array($tagterm->name);
             }
             $details['post_type'] = 'post';
-            if ($mct_ai_optarray['ai_edit_makelive']) $details['post_status'] = 'draft';
+            if ($mct_ai_optarray['ai_edit_makelive']) {
+                $details['post_status'] = 'draft';
+                if ($mct_ai_optarray['ai_now_date']) {
+                    $details['edit_date'] = true;
+                    $details['post_date'] = '';
+                    $details['post_date_gmt'] = "0000-00-00 00:00:00";
+                }
+            } elseif ($mct_ai_optarray['ai_now_date']) {
+                $details['edit_date'] = true;
+                $details['post_date'] = '';
+            }
             wp_update_post($details);
             if ($mct_ai_optarray['ai_edit_makelive']){
                 $edit_url = get_edit_post_link( $thepost, array('edit' => '&amp;'));

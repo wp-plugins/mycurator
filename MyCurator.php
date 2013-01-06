@@ -2,9 +2,9 @@
 
 /*
  * Plugin Name: MyCurator
- * Plugin URI: http://www.target-info.com
+ * Plugin URI: http://www.target-info.com/mycurator/
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -57,11 +57,14 @@ if (empty($mct_ai_optarray)){
         'ai_keep_good_here' => "1",
         'ai_edit_makelive' => "1",
         'ai_save_thumb' => "1",
+        'ai_num_posts' => 10,
+        'ai_orig_text' => 'Click here to view original web page at',
+        'ai_save_text' => 'Click here to view full article',
         'ai_train_days' => 7
     );
     update_option('mct_ai_options',$mct_ai_optarray);
 }
-if (empty($mct_ai_optarray['ai_excerpt'])) { 
+if (!isset($mct_ai_optarray['ai_excerpt'])) { 
     $mct_ai_optarray['ai_excerpt'] = 50;  //set up for existing installs
     update_option('mct_ai_options',$mct_ai_optarray);
 }
@@ -155,12 +158,13 @@ function mct_ai_createmenu() {
     add_submenu_page(__FILE__,'New Topic','New Topic','manage_links',__FILE__.'_newtopic','mct_ai_topicpage');
     add_submenu_page(__FILE__,'Topic Sources Manager','Topic Source','manage_links',__FILE__.'_topicsource','mct_ai_topicsource');
     add_submenu_page(__FILE__,'Remove','Remove','manage_links',__FILE__.'_remove','mct_ai_removepage');
-    add_submenu_page(__FILE__,'Options', 'Options','manage_links',__FILE__.'_options','mct_ai_optionpage');
+    $optionspage = add_submenu_page(__FILE__,'Options', 'Options','manage_links',__FILE__.'_options','mct_ai_optionpage');
     $getpage = add_submenu_page(__FILE__,'Get It & Source It', 'Get It & Source It','manage_links',__FILE__.'_getit','mct_ai_getitpage');
     add_submenu_page(__FILE__,'Logs','Logs','manage_links',__FILE__.'_Logs','mct_ai_logspage');
     add_submenu_page(__FILE__,'Report','Report','manage_links',__FILE__.'_Report','mct_ai_logreport');
     
     add_action('load-'.$getpage, 'mct_ai_queueit');
+    add_action('load-'.$optionspage, 'mct_ai_queueit');
 }
 
 function mct_ai_queueit(){
@@ -665,6 +669,7 @@ function mct_ai_topicpage() {
                 <th scope="row">Choose Type</th>
                 <td><select name="topic_type" >
                     <option value="Filter" <?php selected($edit_vals['topic_type'],"Filter"); ?>>Filter</option>
+                    <option value="Video" <?php selected($edit_vals['topic_type'],"Video"); ?>>Video</option>
                     <option value="Relevance" <?php selected($edit_vals['topic_type'],"Relevance"); ?>>Relevance</option></select></td>    
             </tr>
             <tr>
@@ -788,6 +793,19 @@ function mct_ai_optionpage() {
             'ai_post_user' => trim(sanitize_text_field($_POST['ai_post_user'])),
             'ai_utf8' => absint($_POST['ai_utf8']),
             'ai_edit_makelive' => absint($_POST['ai_edit_makelive']),
+            'ai_num_posts' => absint($_POST['ai_num_posts']),
+            'ai_post_title' => absint($_POST['ai_post_title']),
+            'ai_new_tab' => absint($_POST['ai_new_tab']),
+            'ai_no_quotes' => absint($_POST['ai_no_quotes']),
+            'ai_now_date' => absint($_POST['ai_now_date']),
+            'ai_post_img' => absint($_POST['ai_post_img']),
+            'ai_img_align' => trim(sanitize_text_field($_POST['ai_img_align'])),
+            'ai_img_size' => trim(sanitize_text_field($_POST['ai_img_size'])),
+            'ai_no_anchor' => absint($_POST['ai_no_anchor']),
+            'ai_edit_tab' => absint($_POST['ai_edit_tab']),
+            'ai_embed_video' => absint($_POST['ai_embed_video']),
+            'ai_video_width' => absint($_POST['ai_video_width']),
+            'ai_video_height' => absint($_POST['ai_video_height']),
             'ai_plan' => $mct_ai_optarray['ai_plan']
         );
         update_option('mct_ai_options',$opt_update);
@@ -813,9 +831,19 @@ function mct_ai_optionpage() {
     //Get Options
     $cur_options = get_option('mct_ai_options');
     if (empty($cur_options['ai_cron_period'])) $cur_options['ai_cron_period'] = '6';
-    if (empty($cur_options['ai_orig_text'])) $cur_options['ai_orig_text'] = 'Click here to view original web page at';
-    if (empty($cur_options['ai_save_text'])) $cur_options['ai_save_text'] = 'Click here to view full article';
+    //if (empty($cur_options['ai_orig_text'])) $cur_options['ai_orig_text'] = 'Click here to view original web page at';
+    //if (empty($cur_options['ai_save_text'])) $cur_options['ai_save_text'] = 'Click here to view full article';
+    if (empty($cur_options['ai_num_posts'])) $cur_options['ai_num_posts'] = 10;
+    if (empty($cur_options['ai_video_width'])) $cur_options['ai_video_width'] = 400;
+    if (empty($cur_options['ai_video_height'])) $cur_options['ai_video_height'] = 300;
     ?>
+    <script>
+    //<![CDATA[
+    jQuery(function() {
+        jQuery( ".mct-ai-tabs #tabs" ).tabs();
+    });
+    //]]>
+    </script>
     <div class='wrap'>
     <?php screen_icon('plugins'); ?>
     <h2>MyCurator Options</h2> 
@@ -826,97 +854,185 @@ function mct_ai_optionpage() {
         You can set MyCurator options as described - 
         see <a href="http://www.target-info.com/documentation-2/documentation-options/" >Options Documentation</a> for more details.</p>
         <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] . '&updated=true'); ?>" >
-        <table class="form-table" >
-            <tr>
-                <th scope="row">Turn on MyCurator?</th>
-                <td><input name="ai_on" type="checkbox" id="ai_on" value="1" <?php checked('1', $cur_options['ai_on']); ?>  /></td>    
-            </tr>
-            <tr>
-                <th scope="row">Enter the API Key to Access Cloud Services</th>
-                <td><input name="ai_cloud_token" type="text" id="ai_cloud_token" size ="50" value="<?php echo $cur_options['ai_cloud_token']; ?>"  />
-                <?php if (empty($cur_options['ai_cloud_token'])) { ?><span>&nbsp;MyCurator API Key: <a href="http://www.target-info.com/pricing/" />Get API Key</a></span></td> <?php } ?>   
-            </tr>            
-            <tr>
-                <th scope="row">Keep Log for How Many Days?</th>
-                <td><input name="ai_log_days" type="text" id="ai_log_days" size ="5" value="<?php echo $cur_options['ai_log_days']; ?>"  /></td>    
-            </tr>
-            <tr>
-                <th scope="row">Keep Training Posts for How Many Days?</th>
-                <td><input name="ai_train_days" type="text" id="ai_train_days" size ="5" value="<?php echo $cur_options['ai_train_days']; ?>"  /></td>    
-            </tr>   
-            <tr>
-                <th scope="row">Save first article picture as featured post thumbnail?</th>
-                <td><input name="ai_save_thumb" type="checkbox" id="ai_save_thumb" value="1" <?php checked('1', $cur_options['ai_save_thumb']); ?>  /></td>    
-            </tr>
-            <tr>
-                <th scope="row">Shorten Links entry page?</th>
-                <td><input name="ai_short_linkpg" type="checkbox" id="ai_short_linkpg" value="1" <?php checked('1', $cur_options['ai_short_linkpg']); ?>  /></td>    
-            </tr>
-            <tr>
-                <th scope="row">Run MyCurator Every </th>
-                <td><input name="ai_cron_period" type="radio" value="3" <?php checked('3', $cur_options['ai_cron_period']); ?>  /> 3
-                    <input name="ai_cron_period" type="radio" value="6" <?php checked('6', $cur_options['ai_cron_period']); ?>  /> 6
-                    <input name="ai_cron_period" type="radio" value="12" <?php checked('12', $cur_options['ai_cron_period']); ?>  /> 12
-                    <input name="ai_cron_period" type="radio" value="24" <?php checked('24', $cur_options['ai_cron_period']); ?>  /> 24 Hours
-                </td>    
-            </tr> 
-            <tr>
-                <th scope="row">Excerpt length in words:</th>
-                <td><input name="ai_excerpt" type="text" id="ai_excerpt" size ="5" value="<?php echo $cur_options['ai_excerpt']; ?>"  /></td>    
-            </tr> 
-            <tr>
+        <div class="mct-ai-tabs" >
+         <div id="tabs">
+            <ul>
+            <li><a href="#tabs-1">Basic</a></li>
+            <li><a href="#tabs-2">Curation</a></li>
+            <li><a href="#tabs-3">Format</a></li>
+            <li><a href="#tabs-4">Admin</a></li>
+            </ul>
+            <div id="tabs-1">            
+                <table class="form-table" >
+                    <tr><th><strong>Basic Settings</strong></th>
+                <td> </td></tr>
+                <tr>
+                    <th scope="row">Turn on MyCurator?</th>
+                    <td><input name="ai_on" type="checkbox" id="ai_on" value="1" <?php checked('1', $cur_options['ai_on']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Enter the API Key to Access Cloud Services</th>
+                    <td><input name="ai_cloud_token" type="text" id="ai_cloud_token" size ="50" value="<?php echo $cur_options['ai_cloud_token']; ?>"  />
+                    <?php if (empty($cur_options['ai_cloud_token'])) { ?><span>&nbsp;MyCurator API Key: <a href="http://www.target-info.com/pricing/" />Get API Key</a></span></td> <?php } ?>   
+                </tr>            
+                <tr>
+                    <th scope="row">Save first article picture as featured post thumbnail?</th>
+                    <td><input name="ai_save_thumb" type="checkbox" id="ai_save_thumb" value="1" <?php checked('1', $cur_options['ai_save_thumb']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Run MyCurator Every </th>
+                    <td><input name="ai_cron_period" type="radio" value="3" <?php checked('3', $cur_options['ai_cron_period']); ?>  /> 3
+                        <input name="ai_cron_period" type="radio" value="6" <?php checked('6', $cur_options['ai_cron_period']); ?>  /> 6
+                        <input name="ai_cron_period" type="radio" value="12" <?php checked('12', $cur_options['ai_cron_period']); ?>  /> 12
+                        <input name="ai_cron_period" type="radio" value="24" <?php checked('24', $cur_options['ai_cron_period']); ?>  /> 24 Hours
+                    </td>    
+                </tr> 
+                <tr>
+                    <th scope="row">Enable Non-English Language Processing?</th>
+                    <td><input name="ai_utf8" type="checkbox" id="ai_utf8" value="1" <?php checked('1', $cur_options['ai_utf8']); ?>  />
+                    <span>&nbsp;<em>This must be checked if your blog is Not in English, see 
+                            <a href="http://www.target-info.com/documentation-2/documentation-international/" >Documentation -  International</a></em></span></td> 
+                </tr>
+                </table>
+            </div>
+            <div id="tabs-2">
+                <table class="form-table" >
+                <tr><th><strong>Manual Curation Settings</strong></th>
+                <td> </td></tr>
+                <tr>
+                    <th scope="row">Keep good trainees on Training Page?</th>
+                    <td><input name="ai_keep_good_here" type="checkbox" id="ai_keep_good_here" value="1" <?php checked('1', $cur_options['ai_keep_good_here']); ?>  />
+                    <span>&nbsp;<em>Use [Make Live] to Post on blog.</em></span></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Show original article link, not readable page?</th>
+                    <td><input name="ai_show_orig" type="checkbox" id="ai_show_orig" value="1" <?php checked('1', $cur_options['ai_show_orig']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Edit post when made live?</th>
+                    <td><input name="ai_edit_makelive" type="checkbox" id="ai_edit_makelive" value="1" <?php checked('1', $cur_options['ai_edit_makelive']); ?>  />
+                    <span>&nbsp;<em>Will create draft post and display in post editor on [Make Live]</em></span></td>     
+                </tr>  
+                <?php /* 
+                <tr>
+                    <th scope="row">&raquo;Open editor in new tab</th>
+                    <td><input name="ai_edit_tab" type="checkbox" id="ai_edit_tab" value="1" <?php checked('1', $cur_options['ai_edit_tab']); ?>  /></td>    
+                </tr>
+                 */ ?>
+                <tr>
+                    <th scope="row">Make Post Date 'Immediately' when Made Live</th>
+                    <td><input name="ai_now_date" type="checkbox" id="ai_now_date" value="1" <?php checked('1', $cur_options['ai_now_date']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Embed Video in Post for Video Topic?</th>
+                    <td><input name="ai_embed_video" type="checkbox" id="ai_embed_video" value="1" <?php checked('1', $cur_options['ai_embed_video']); ?>  /></td>     
+                </tr> 
+                <tr>
+                    <th scope="row">&raquo;Size of Embed Iframe</th>
+                    <td>Width <input name="ai_video_width" type="text" id="ai_video_width" size ="5" value="<?php echo $cur_options['ai_video_width']; ?>"  />&nbsp;
+                        Height <input name="ai_video_height" type="text" id="ai_video_height" size ="5" value="<?php echo $cur_options['ai_video_height']; ?>"  /></td>    
+                </tr>  
+                </table>
+            </div>
+            <div id="tabs-3">
+                <table class="form-table" >
+                <tr><th><strong>Format Settings</strong></th>
+                <td> </td></tr>
+                <tr>
+                    <th scope="row">Link to Original Page Text</th>
+                    <td><input name="ai_orig_text" type="text" id="ai_orig_text" size ="50" value="<?php echo $cur_options['ai_orig_text']; ?>"  />
+                        <span>&nbsp;<em>If using link to original web page, customize this text</em></span></td> 
+                </tr>
+                <tr>
+                    <th scope="row">&raquo; Do Not Use this text as part of Link Anchor</th>
+                    <td><input name="ai_no_anchor" type="checkbox" id="ai_no_anchor" value="1" <?php checked('1', $cur_options['ai_no_anchor']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Link to Saved Readable Page Text</th>
+                    <td><input name="ai_save_text" type="text" id="ai_save_text" size ="50" value="<?php echo $cur_options['ai_save_text']; ?>"  />
+                        <span>&nbsp;<em>If using link to saved readable page, customize this text</em></span></td> 
+                </tr>
+                <tr>
+                    <th scope="row">Use Article Title Instead of Domain in Original Article Link</th>
+                    <td><input name="ai_post_title" type="checkbox" id="ai_post_title" value="1" <?php checked('1', $cur_options['ai_post_title']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Open Original Article Link in New Tab</th>
+                    <td><input name="ai_new_tab" type="checkbox" id="ai_new_tab" value="1" <?php checked('1', $cur_options['ai_new_tab']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Do Not Use Blockquotes on Excerpt</th>
+                    <td><input name="ai_no_quotes" type="checkbox" id="ai_no_quotes" value="1" <?php checked('1', $cur_options['ai_no_quotes']); ?>  /></td>    
+                </tr>
+                 <tr>
+                    <th scope="row">Excerpt length in words:</th>
+                    <td><input name="ai_excerpt" type="text" id="ai_excerpt" size ="5" value="<?php echo $cur_options['ai_excerpt']; ?>"  /></td>    
+                </tr>                 
+                <tr>
+                    <th scope="row"># of Articles shown on Training Page</th>
+                    <td><input name="ai_num_posts" type="text" id="ai_num_posts" size ="5" value="<?php echo $cur_options['ai_num_posts']; ?>"  /></td>    
+                </tr>  
+                <tr>
+                    <th scope="row">Save First Image into Curated Post</th>
+                    <td><input name="ai_post_img" type="checkbox" id="ai_post_img" value="1" <?php checked('1', $cur_options['ai_post_img']); ?>  />
+                    <span>&nbsp;<em>If checked, you should turn off using Featured Images on the Basic tab or you may get two images</em></span></td>    
+                </tr>
+                <tr>
+                    <th scope="row">&raquo; Image Alignment</th>
+                    <td><input name="ai_img_align" type="radio" value="left" <?php checked('left', $cur_options['ai_img_align']); ?>  /> Left
+                        <input name="ai_img_align" type="radio" value="right" <?php checked('right', $cur_options['ai_img_align']); ?>  /> Right
+                        <input name="ai_img_align" type="radio" value="center" <?php checked('center', $cur_options['ai_img_align']); ?>  /> Center
+                        <input name="ai_img_align" type="radio" value="none" <?php checked('none', $cur_options['ai_img_align']); ?>  /> None
+                    </td>    
+                </tr> 
+                <tr>
+                    <th scope="row">&raquo; Image Size</th>
+                    <td><input name="ai_img_size" type="radio" value="thumbnail" <?php checked('thumbnail', $cur_options['ai_img_size']); ?>  /> Thumbnail
+                        <input name="ai_img_size" type="radio" value="medium" <?php checked('medium', $cur_options['ai_img_size']); ?>  /> Medium
+                        <input name="ai_img_size" type="radio" value="large" <?php checked('large', $cur_options['ai_img_size']); ?>  /> Large
+                        <input name="ai_img_size" type="radio" value="full" <?php checked('full', $cur_options['ai_img_size']); ?>  /> Full Size
+                    </td>    
+                </tr> 
+                </table>
+            </div>
+            <div id="tabs-4">
+                <table class="form-table" >
+               <tr><th><strong>Administrative Settings</strong></th>
+                <td> </td></tr>
+                <tr>
+                    <th scope="row">Do Not Save to Excerpt Field in Post</th>
+                    <td><input name="ai_nosave_excerpt" type="checkbox" id="ai_nosave_excerpt" value="1" <?php checked('1', $cur_options['ai_nosave_excerpt']); ?>  />
+                    <span>&nbsp;<em>Use this if your theme uses the_excerpt and you add comments to the post</em></span></td>     
+                </tr> 
+                <tr>
                     <th scope="row">User for MyCurator Posts</th>
                     <td><select name="ai_post_user" >
                     <?php foreach ($allusers as $users){ ?>
                         <option value="<?php echo $users->user_login; ?>" <?php selected($cur_options['ai_post_user'],$users->user_login); ?> ><?php echo $users->user_login; ?></option>
                     <?php } //end foreach ?>
                         </select></td>       
+                </tr>                
+                <tr>
+                    <th scope="row">Shorten Links entry page?</th>
+                    <td><input name="ai_short_linkpg" type="checkbox" id="ai_short_linkpg" value="1" <?php checked('1', $cur_options['ai_short_linkpg']); ?>  /></td>    
                 </tr>
-            <tr><th><strong>Manual Curation Settings</strong></th>
-            <td> </td></tr>
-            <tr>
-                <th scope="row">Keep good trainees on Training Page?</th>
-                <td><input name="ai_keep_good_here" type="checkbox" id="ai_keep_good_here" value="1" <?php checked('1', $cur_options['ai_keep_good_here']); ?>  />
-                <span>&nbsp;<em>Use [Make Live] to Post on blog.</em></span></td>    
-            </tr>
-            <tr>
-                <th scope="row">Show original article link, not readable page?</th>
-                <td><input name="ai_show_orig" type="checkbox" id="ai_show_orig" value="1" <?php checked('1', $cur_options['ai_show_orig']); ?>  /></td>    
-            </tr>
-            <tr>
-                <th scope="row">Edit post when made live?</th>
-                <td><input name="ai_edit_makelive" type="checkbox" id="ai_edit_makelive" value="1" <?php checked('1', $cur_options['ai_edit_makelive']); ?>  />
-                <span>&nbsp;<em>Will create draft post and display in post editor on [Make Live]</em></span></td>     
-            </tr>   
-            <tr>
-                <th scope="row">Do Not Save to Excerpt Field in Post</th>
-                <td><input name="ai_nosave_excerpt" type="checkbox" id="ai_nosave_excerpt" value="1" <?php checked('1', $cur_options['ai_nosave_excerpt']); ?>  />
-                <span>&nbsp;<em>Use this if your theme uses the_excerpt and you add comments to the post</em></span></td>     
-            </tr> 
-            <tr><th><strong>International Settings</strong></th>
-            <td> </td></tr>
-            <tr>
-                <th scope="row">Link to Original Page Text</th>
-                <td><input name="ai_orig_text" type="text" id="ai_orig_text" size ="50" value="<?php echo $cur_options['ai_orig_text']; ?>"  />
-                    <span>&nbsp;<em>If using link to original web page, customize this text</em></span></td> 
-            </tr>
-            <tr>
-                <th scope="row">Link to Saved Readable Page Text</th>
-                <td><input name="ai_save_text" type="text" id="ai_save_text" size ="50" value="<?php echo $cur_options['ai_save_text']; ?>"  />
-                    <span>&nbsp;<em>If using link to saved readable page, customize this text</em></span></td> 
-            </tr>
-            <tr>
-                <th scope="row">Enable Non-English Language Processing?</th>
-                <td><input name="ai_utf8" type="checkbox" id="ai_utf8" value="1" <?php checked('1', $cur_options['ai_utf8']); ?>  />
-                <span>&nbsp;<em>This must be checked if your blog is Not in English, see 
-                        <a href="http://www.target-info.com/documentation-2/documentation-international/" >Documentation -  International</a></em></span></td> 
-            </tr>
-        </table>
-            
+                <tr>
+                    <th scope="row">Keep Log for How Many Days?</th>
+                    <td><input name="ai_log_days" type="text" id="ai_log_days" size ="5" value="<?php echo $cur_options['ai_log_days']; ?>"  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Keep Training Posts for How Many Days?</th>
+                    <td><input name="ai_train_days" type="text" id="ai_train_days" size ="5" value="<?php echo $cur_options['ai_train_days']; ?>"  /></td>    
+                </tr>                   
+                </table>
+            </div>
+         </div>
+        </div>
             <?php wp_nonce_field('mct_ai_optionspg','optionset'); ?>
         <div class="submit">
           <input name="Submit" type="submit" value="Save Options" class="button-primary" />
         </div>
+        <em>Saves Options for All Tabs at once</em>
         </form>
     </div>
 <?php
@@ -1024,7 +1140,7 @@ function mct_ai_removepage() {
                 //Delete Topic
                 $termobj = get_term_by('name',$delname, 'topic');
                 wp_delete_term($termobj->term_id, 'topic');
-                $wpdb->query($wpdb->prepare ("DELETE FROM $ai_topic_tbl WHERE topic_name = '$delname'" ));
+                $wpdb->query($wpdb->prepare ("DELETE FROM $ai_topic_tbl WHERE topic_name = %s", $delname ));
                 $a = '';
             }
         }
@@ -1188,7 +1304,7 @@ s=(e?e():(k)?k():(x?x.createRange().text:0)),
 f='" . plugins_url('mycurator/MyCurator_getit.php') . "',
 l=d.location,
 e=encodeURIComponent,
-u=f+'?u='+e(l.href)+'&t='+e(d.title)+'&s='+e(s)+'&v=4';
+u=f+'?u='+e(l.host+l.pathname)+'&t='+e(d.title)+'&s='+e(s)+'&v=4';
 a=function(){if(!w.open(u,'t','toolbar=0,resizable=1,scrollbars=1,status=1,width=520,height=400'))l.href=u;};
 if (/Firefox/.test(navigator.userAgent)) setTimeout(a, 0); else a();
 void(0)";

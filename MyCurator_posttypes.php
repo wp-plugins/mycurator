@@ -218,6 +218,10 @@ function target_ai_filter_post_type_request( $query ) {
     //Uses the slug for the filter
   global $pagenow, $typenow;
 
+  if ($typenow != 'target_ai') {
+        return;
+  }
+  
   if ( 'edit.php' == $pagenow ) {
     $filters = get_object_taxonomies( $typenow );
     foreach ( $filters as $tax_slug ) {
@@ -234,12 +238,13 @@ function target_ai_shortcode(){
     //Displays target_ai post types on a page with this shortcode
     //Very little formatting so it will pick up css from current theme
     
-    global $post, $ai_topic_tbl, $wpdb, $wp_query, $paged, $blog_id;
+    global $post, $ai_topic_tbl, $wpdb, $wp_query, $paged, $blog_id, $mct_ai_optarray;
     $qtopic = '';
     $qaiclass = '';
     $msg = '';
     $last_on = 0;
     $post_array = array();
+    $per_page = isset($mct_ai_optarray['ai_num_posts']) ? $mct_ai_optarray['ai_num_posts'] : 10;
 
     //handle get requests for topic and ai_class, ai_class is nested in previous topic
     if (isset($_GET['topic'])){
@@ -279,7 +284,7 @@ function target_ai_shortcode(){
                 'post_type' => 'target_ai',
                 'orderby' => 'date',
                 'order' => 'DESC',
-                'posts_per_page' => 10,
+                'posts_per_page' => $per_page,
                 'paged' => $paged
             );
     if (!empty($qtopic)){
@@ -363,7 +368,7 @@ function target_ai_shortcode(){
             echo(get_the_term_target_ai($post->ID,'ai_class','Relevance: ',',',' ')); ?><br />
 <!-- Content -->
 <br />
-           <?php if ( has_post_thumbnail() ) the_post_thumbnail('thumbnail'); ?>
+           <?php if ( has_post_thumbnail() && empty($mct_ai_optarray['ai_post_img'])) the_post_thumbnail('thumbnail'); ?>
             <?php 
                     the_content();
               ?>
@@ -462,6 +467,11 @@ function mct_ai_traintags($content){
                      $content = $matches[1].'> '.$matches[2].'</a>'.$content;
                      //Replace the excerpt with the full article
                      $content = preg_replace('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',"<br />".$article,$content);
+                 } elseif (stripos($content,'<p id="mct_ai_excerpt">') !== false) {
+                     //Put in Source URL
+                     $content = $matches[1].'> '.$matches[2].'</a>'.$content;
+                     //Replace the excerpt with the full article
+                     $content = preg_replace('{<p id="mct_ai_excerpt">([^<]*)</p>}',"<br />".$article,$content);
                      
                  } else {
                      //Put in Source URL
@@ -480,19 +490,24 @@ function mct_ai_traintags($content){
         $trainstr .= '<img src="'.esc_url( admin_url( "images/wpspin_light.gif" ) ).'" alt="" id="saving" style="display:none;" />';
         $pos = preg_match('{/ailink/([0-9]+)"\s*>([^<]*)</a>}',$content,$matches);
         if ($pos) {
-            $pos = stripos($content,$matches[0]);
-            $len = strlen($matches[0]);
-            $content = substr($content,0,$pos+$len).$trainstr."<br />".substr($content,$pos+$len);
+            if ($spos = strrpos($content, "</a></p>")) {
+                $content = substr($content,0,$spos+4)."&nbsp;".$trainstr.substr($content,$spos+4);
+            } elseif ($spos = strrpos($content, "</a></span>")) {  //backward compatible with some betas
+                $content = substr($content,0,$spos+11)."&nbsp;".$trainstr.substr($content,$spos+11);
+            } else { //do the old way
+                $pos = stripos($content,$matches[0]);
+                $len = strlen($matches[0]);
+                $content = substr($content,0,$pos+$len).$trainstr."<br />".substr($content,$pos+$len);
+            }
         } else {
-            $pos = stripos($content, "</a></p>");
-            if ($pos) {  //place in final <p> if found since MyCurator puts in just one link
-                $len = strlen($content);
-                $content = substr($content,0,$pos+4)."&nbsp;".$trainstr.substr($content,$pos+4);
+            if ($pos = strrpos($content, "</a></p>")) {
+                $content = substr($content,0,$pos+4)."&nbsp;".$trainstr.substr($content,$pos+4); 
+            } elseif ($pos = strrpos($content, "</a></span>")) { //backward compatible with some betas
+                $content = substr($content,0,$pos+11)."&nbsp;".$trainstr.substr($content,$pos+11);
             } else {
-                $content .= "&nbsp;".$trainstr;
+                $content .= "&nbsp;".$trainstr;  //if nothing else...
             }
         }
-        $trainstr .= '<img src="'.esc_url( admin_url( "images/wpspin_light.gif" ) ).'" alt="" id="saving" style="display:none;" />';
     }
     return $content;
     

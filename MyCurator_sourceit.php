@@ -179,6 +179,7 @@ jQuery(document).ready(function($) {
 			<div id="message" class="updated">
 			<p><strong><?php _e('Your Feed URL has been saved.'); ?></strong>
 			<a href="#" onclick="window.close();"><?php _e('Close Window'); ?></a></p>
+                        <script type="text/javascript">setTimeout('self.close();',2000);</script>
 			</div>
 		<?php exit(); } ?>
                 <div id="jquery-message" style="display:none; color: red; font-size: 18px;">

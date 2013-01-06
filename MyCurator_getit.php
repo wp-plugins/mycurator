@@ -194,6 +194,7 @@ jQuery(document).ready(function($) {
 			<div id="message" class="updated">
 			<p><strong><?php _e('Your post has been saved.'); ?></strong>
 			<a href="#" onclick="window.close();"><?php _e('Close Window'); ?></a></p>
+                        <script type="text/javascript">setTimeout('self.close();',2000);</script>
 			</div>
 		<?php exit(); } ?>
 

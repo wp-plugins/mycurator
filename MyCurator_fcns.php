@@ -80,8 +80,32 @@ function mct_ai_tw_expandurl($url){
     if (preg_match_all('/Location:\s(.+?\s)/i', $headers, $matches)) {
         $pos = count($matches[1]) - 1;
         $url = trim($matches[1][$pos]);
+        //Strip off the query and fragments
+        $parsed_url = parse_url($url);
+        $scheme   = isset($parsed_url['scheme']) ? $parsed_url['scheme'] . '://' : ''; 
+        $host     = isset($parsed_url['host']) ? $parsed_url['host'] : ''; 
+        $path     = isset($parsed_url['path']) ? $parsed_url['path'] : ''; 
+        //mct_ai_testurl("$scheme$host$path");
+        return "$scheme$host$path";
+    } else {
+        return "";
     }
     return $url;
+}
+
+function mct_ai_testurl($url){
+    $ch = curl_init($url);
+    curl_setopt($ch,CURLOPT_HEADER,true);
+    curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
+    curl_setopt($ch,CURLOPT_NOBODY,true);    
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION,true);
+    $headers = curl_exec($ch);
+    $curlinfo = curl_getinfo($ch);
+    curl_close($ch);
+    if ($curlinfo['http_code'] != 200) {
+        mct_ai_log("URL Test Error",MCT_AI_LOG_ACTIVITY, 'HTTP error: '.strval($curlinfo['http_code']),$url);
+        return false;
+    } 
 }
 
 function mct_ai_postthumb($imgurl, $post_id) {
