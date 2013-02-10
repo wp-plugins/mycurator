@@ -69,8 +69,6 @@ function press_it() {
       'post_content'  => $content,
       'post_author' => $user_id,
       'post_title'  =>  $title,
-      'ping_status' => 'closed',
-      'comment_status' => 'open',
       'post_name' => sanitize_title($title),
       'post_status' => 'publish'
     );

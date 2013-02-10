@@ -196,4 +196,306 @@ function mct_ai_curl_get_file_contents($URL) {
     return FALSE;
 }
 
+function mct_ai_train_ajax() {
+    //Handle ajax requests from training pages/posts
+    global $mct_ai_optarray;
+    
+    $response = new WP_Ajax_Response;
+    //User Cap ok?
+    if (!current_user_can('edit_published_posts')){
+        $response->add(array('data' => 'Error - Not Allowed'));
+        $response->send();
+        exit();
+    }
+    //Get args
+    $args = wp_parse_args($_POST['qargs']);
+    //Multi class set
+    if (!empty($args['multi'])){ 
+        $pid = intval($args['multi']);
+        if (!check_ajax_referer('mct_ai_multi'.$pid,'nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        $terms = mct_ai_train_multi($pid);
+        if ( is_wp_error($terms) ) { 
+            $response->add(array('data' => 'Error - Update Term'));
+        } else {
+            $response->add(array(
+                'data' => 'Ok',
+                'supplemental' => array(
+                    'action' => 'multi',
+                    'remove' => 0
+                ),
+            ));
+        }
+        $response->send();
+        exit();
+    }
+    //Delete post
+    if (!empty($args['action']) && $args['action'] == 'trash'){ 
+        $pid = intval($args['post']);
+        if (!check_ajax_referer('trash-post_'.$pid,'nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        $terms = wp_trash_post($pid);
+        if ( !$terms ) { 
+            $response->add(array('data' => 'Error - Could Not Delete'));
+        } else {
+            $response->add(array(
+                'data' => 'Ok',
+                'supplemental' => array(
+                    'action' => 'delete',
+                    'remove' => $pid
+                ),
+            ));
+        }
+        $response->send();
+        exit();
+    }
+    //Train Bad
+    if (!empty($args['bad'])){ 
+        $pid = intval($args['bad']);
+        if (!check_ajax_referer('mct_ai_train_bad'.$pid,'nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        $tname = mct_ai_get_tname_ai($pid);
+        if ($tname != ''){
+            mct_ai_trainpost($pid, $tname, 'bad'); 
+            $terms = wp_trash_post($pid);
+            if ( !$terms ) { 
+                $response->add(array('data' => 'Error - Could Not Delete Post'));
+            } else {
+                $response->add(array(
+                    'data' => 'Ok',
+                    'supplemental' => array(
+                        'action' => 'bad',
+                        'remove' => $pid
+                    ),
+                ));
+            }
+        } else {
+            $response->add(array('data' => 'Error - Could not find Topic'));
+        } 
+        $response->send();
+        exit();
+    }
+    //Train Good
+    if (!empty($args['good'])){ 
+        $pid = intval($args['good']);
+        if (!check_ajax_referer('mct_ai_train_good'.$pid,'nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        $tname = mct_ai_get_tname_ai($pid);
+        if ($tname != ''){
+            mct_ai_trainpost($pid, $tname, 'good'); 
+            if (!empty($mct_ai_optarray['ai_keep_good_here'])) {
+                $remove = 0;
+                $edit = 'no';
+            } else {
+                $remove = $pid;
+                if (!empty($mct_ai_optarray['ai_edit_makelive'])) {
+                    mct_ai_traintoblog($pid,'draft');
+                    $edit = 'yes';
+                } else {
+                    mct_ai_traintoblog($pid,'publish');
+                    $edit = 'no';
+                }
+            }
+            
+            $response->add(array(
+                    'data' => 'Ok',
+                    'supplemental' => array(
+                        'action' => 'good',
+                        'edit' => $edit,
+                        'remove' => $remove
+                    ),
+                ));
+        } else {
+            $response->add(array('data' => 'Error - Could not find Topic'));
+        } 
+        $response->send();
+        exit();
+    }
+    //Make Live
+    if (!empty($args['move'])){ 
+        $pid = intval($args['move']);
+        if (!check_ajax_referer('mct_ai_move'.$pid,'nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        if (!empty($mct_ai_optarray['ai_edit_makelive'])) {
+            mct_ai_traintoblog($pid,'draft');
+            $edit = 'yes';
+        } else {
+            mct_ai_traintoblog($pid,'publish');
+            $edit = 'no';
+        }
+        $response->add(array(
+                'data' => 'Ok',
+                'supplemental' => array(
+                    'action' => 'move',
+                    'edit' => $edit,
+                    'remove' => $pid
+                ),
+        ));
+        $response->send();
+        exit();
+    }
+    //draft
+    if (!empty($args['draft'])){ 
+        $pid = intval($args['draft']);
+        if (!check_ajax_referer('mct_ai_draft'.$pid,'nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        mct_ai_traintoblog($pid,'draft');
+        $edit = 'no';
+        $response->add(array(
+                'data' => 'Ok',
+                'supplemental' => array(
+                    'action' => 'draft',
+                    'edit' => 'no',
+                    'remove' => $pid
+                ),
+        ));
+        $response->send();
+        exit();
+    }
+    //Quick Post
+    if (!empty($args['quick'])){ 
+        $pid = intval($args['quick']);
+        if (!check_ajax_referer('bulk-posts','nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        //rebuild the post contents
+        $thepost = get_post($pid, ARRAY_A);
+        if (empty($thepost)) {
+            $response->add(array('data' => 'Error - No Post - '.$pid));
+            $response->send();
+            exit();
+        }
+        $newpost = array();
+        $newpost['ID'] = $pid;
+        $newpost['post_title'] = trim(sanitize_text_field($_POST['title']));
+        $excerpt = trim(sanitize_text_field($_POST['excerpt']));
+        $notes = trim(sanitize_text_field($_POST['note']));
+        $type = trim(sanitize_text_field($_POST['type']));
+        $content = $thepost['post_content'];
+        //new text
+        $newtext = '';
+        if (!empty($notes)) $newtext = '<p>'.$notes.'</p>';
+        if (!empty($excerpt)){
+            if (empty($mct_ai_optarray['ai_no_quotes'])) {
+                $newtext = $newtext.'<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';
+            } else {
+                $newtext = $newtext.'<p id="mct_ai_excerpt">'.$excerpt.'</p>';
+            }
+        }
+        //place in content
+        if (stripos($content,'<blockquote id="mct_ai_excerpt">') !== false) {
+            $content = preg_replace('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',$newtext,$content);
+        } elseif (stripos($content,'<p id="mct_ai_excerpt">') !== false) {
+            $content = preg_replace('{<p id="mct_ai_excerpt">([^<]*)</p>}',$newtext,$content);
+        } elseif (stripos($content, '<p id="mct-ai-attriblink">') !== false) {
+            //place just in front of link
+            $pos = stripos($content, '<p id="mct-ai-attriblink">');
+            if ($pos == 0) {
+                $content = $newtext.$content;
+            } else {
+                $content = substr($content,0,$pos).$newtext.substr($content,$pos);
+            }
+        } else {
+            //just append to the end, probably a picture or a video
+            $content = $content.$newtext;
+        }
+        $newpost['post_content'] = $content;
+        wp_update_post($newpost);
+        //Now move it out of training
+        mct_ai_traintoblog($pid, $type);
+        $response->add(array('data' => 'Ok'));
+        $response->send();
+        exit();
+    }
+    exit();
+}
+
+function mct_ai_get_tname_ai($post_id){
+    //Returns the topic name for a post if it is a Relevance type, else blank
+    global $wpdb, $ai_topic_tbl;
+    
+    $terms = get_the_terms( $post_id, 'topic' );
+    $tname = '';
+    if (count($terms) == 1 ) { //should only be one
+        //The array key is the id
+        $tids = array_keys($terms);
+        $term = $terms[$tids[0]];
+        $tname = $term->name;
+    } else {
+        return '';
+    }
+    // Check whether Relevance type 
+    $sql = "SELECT `topic_type`
+            FROM $ai_topic_tbl
+            WHERE topic_name = '$tname'";
+     $edit_vals = $wpdb->get_row($sql, ARRAY_A);
+     if ($edit_vals['topic_type'] != "Relevance") return '';
+     
+    return $tname;
+}
+
+function mct_ai_traintoblog($thepost, $status){
+    global $wpdb, $ai_topic_tbl, $mct_ai_optarray;
+    
+    //Move a post - change post type from target_ai to post
+    //read topic table for this category/tag
+    $topic = wp_get_object_terms($thepost,'topic',array('fields' => 'names'));
+    if (!empty($topic)) {
+        $tname = $topic[0];  //should always only be one
+        $sql = "SELECT topic_cat, topic_tag, topic_tag_search2 FROM $ai_topic_tbl WHERE topic_name = '$tname'";
+        $row = $wpdb->get_row($sql);
+        if (!empty($row)){
+            $details = array();
+            $details['ID'] = $thepost;
+            $details['post_category'] = array($row->topic_cat);
+            if ($row->topic_tag_search2){
+                $details['tags_input'] = get_post_meta($thepost,'mct_ai_tag_search2', true);
+            } else {
+                $tagterm = get_term($row->topic_tag,'post_tag');
+                $details['tags_input'] = array($tagterm->name);
+            }
+            $details['post_type'] = 'post';
+            if ($status == 'draft') {
+                $details['post_status'] = 'draft';
+                if (!empty($mct_ai_optarray['ai_now_date'])) {
+                    $details['edit_date'] = true;
+                    $details['post_date'] = '';
+                    $details['post_date_gmt'] = "0000-00-00 00:00:00";
+                }
+            } else {
+                if (!empty($mct_ai_optarray['ai_now_date'])) {
+                    $details['edit_date'] = true;
+                    $details['post_date'] = '';
+                    $details['post_date_gmt'] = '';
+                }
+            }
+            wp_update_post($details);
+        }
+    }
+}
+
+function mct_ai_train_multi($pid){
+    //Set multi ai_class
+   return wp_set_object_terms($pid,'multi','ai_class',false);
+}
 ?>

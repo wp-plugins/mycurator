@@ -259,6 +259,7 @@ function mct_ai_callcloud($type,$topic,$postvals){
         'token' => $mct_ai_optarray['ai_cloud_token'],
         'type' => $type,
         'utf8' => $mct_ai_optarray['ai_utf8'], //which 'word' processing to use
+        'ver' => '1.3.0',
         'gzip' => 1, //enable compression
         'topic_id' => strval($topic['topic_id'])
         );
@@ -369,7 +370,11 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     if ($mct_ai_optarray['ai_show_orig']){
         $post_arr['orig_link'] = mct_ai_formatlink($post_arr);
         $post_content = $post_arr['article'].'<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>';
-        $post_content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$post_content);
+        if (empty($mct_ai_optarray['ai_orig_text'])) {
+            $post_content = str_replace("Click here to view original web page at ",$mct_ai_optarray['ai_orig_text'],$post_content); //remove space too
+        } else {
+            $post_content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$post_content);  // leave space
+        }
     } else {
         $post_content = $post_arr['article'].'<p id="mct-ai-attriblink"><a href="'.$link_redir.'" >Click here to view full article</a></p>';
         $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
@@ -377,7 +382,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     $post_content = apply_filters('mct_ai_postcontent',$post_content);
     // Get an image if we can - 1st match of appropriate size
     $image = '';
-    if ($mct_ai_optarray['ai_save_thumb']  || (isset($mct_ai_optarray['ai_post_img']) && $mct_ai_optarray['ai_post_img'] )) {
+    if (!empty($mct_ai_optarray['ai_save_thumb'])  || !empty($mct_ai_optarray['ai_post_img'])) {
         $regexp1 = '{<img [^>]*src\s*=\s*("|\')([^"\']*)("|\')[^>]*>}i'; 
         $pos = preg_match_all($regexp1,$page,$matchall, PREG_SET_ORDER);
         if ($pos) {
@@ -413,8 +418,6 @@ function mct_ai_post_entry($topic, $post_arr, $page){
       'post_content'  => $post_content,
       'post_author' => $pa,
       'post_title'  =>  $post_arr['title'],
-      'ping_status' => 'closed',
-      'comment_status' => 'open',
       'post_name' => sanitize_title($post_arr['title']),
       'post_status' => 'publish'
     );
@@ -480,8 +483,10 @@ function mct_ai_post_entry($topic, $post_arr, $page){
             'dbsize' => sprintf('%.0f',$post_arr['dbsize'])
         ));
     }
-    //update the image if found as the featured image for the post -  not if a video though
-    if (!empty($image) && $topic['topic_type'] != 'Video'){
+    //update the image if found as the featured image or inserted image for the post 
+    if ($topic['topic_type'] == 'Video' && !empty($post_arr['yt_thumb']) && !empty($mct_ai_optarray['ai_save_thumb'])){
+        $thumb_id = mct_ai_postthumb($post_arr['yt_thumb'],$post_id);
+    } elseif (!empty($image)){
         $thumb_id = mct_ai_postthumb($image,$post_id);
     }
     if ($thumb_id) {  
@@ -528,12 +533,12 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
     // Get original URL
     $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
     if (isset($mct_ai_optarray['ai_new_tab']) && $mct_ai_optarray['ai_new_tab'] ) {
-        $post_arr['orig_link'] = $matches[1].' target="_blank"> '.$matches[2].'</a>';
+        $post_arr['orig_link'] = $matches[1].' target="_blank">'.$matches[2].'</a>';
     } else {
-        $post_arr['orig_link'] = $matches[1].'> '.$matches[2].'</a>';
+        $post_arr['orig_link'] = $matches[1].'>'.$matches[2].'</a>';
     }
     //Now get article content
-    if ($type == 'Video' && isset($mct_ai_optarray['ai_embed_video']) && $mct_ai_optarray['ai_embed_video'] ) {
+    if ($type == 'Video' && !empty($mct_ai_optarray['ai_embed_video'])) {
         //Embed the iframe into article
         $pos = preg_match('{<iframe title="Video Player"[^>]*>}',$page,$matches);
         if ($pos) {
@@ -550,6 +555,11 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
                     $post_arr['article'] = preg_replace('{(src=")([^"]*)(")}','$1'.$newstr.'$3',$post_arr['article']);
                 }
             }
+            /*Try to get youtube thumbnail
+            if (preg_match('{youtube.com/(v|embed)/([^"|\?]*)("|\?)}i', $post_arr['article'], $match)) {
+                $video_id = $match[2];
+                $post_arr['yt_thumb'] = "http://img.youtube.com/vi/$video_id/2.jpg";
+            }  */
             return;
         }
     }

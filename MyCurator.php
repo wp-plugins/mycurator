@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com/mycurator/
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.2.2
+ * Version: 1.3.0
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -57,9 +57,11 @@ if (empty($mct_ai_optarray)){
         'ai_keep_good_here' => "1",
         'ai_edit_makelive' => "1",
         'ai_save_thumb' => "1",
+        'ai_now_date' => "1",
         'ai_num_posts' => 10,
         'ai_orig_text' => 'Click here to view original web page at',
         'ai_save_text' => 'Click here to view full article',
+        'ai_embed_video' => "1",
         'ai_train_days' => 7
     );
     update_option('mct_ai_options',$mct_ai_optarray);
@@ -171,7 +173,7 @@ function mct_ai_queueit(){
     //Queue needed scripts and styles
     wp_enqueue_script('jquery-ui-tabs');
     $style = plugins_url('css/MyCurator.css',__FILE__);
-    wp_register_style('myctabs',$style);
+    wp_register_style('myctabs',$style,array(),'1.0.0');
     wp_enqueue_style('myctabs');
 }
 
@@ -802,7 +804,9 @@ function mct_ai_optionpage() {
             'ai_img_align' => trim(sanitize_text_field($_POST['ai_img_align'])),
             'ai_img_size' => trim(sanitize_text_field($_POST['ai_img_size'])),
             'ai_no_anchor' => absint($_POST['ai_no_anchor']),
-            'ai_edit_tab' => absint($_POST['ai_edit_tab']),
+            'ai_no_inline_pg' => absint($_POST['ai_no_inline_pg']),
+            'ai_no_train_live' => absint($_POST['ai_no_train_live']),
+            'ai_no_fmthelp' => absint($_POST['ai_no_fmthelp']),
             'ai_embed_video' => absint($_POST['ai_embed_video']),
             'ai_video_width' => absint($_POST['ai_video_width']),
             'ai_video_height' => absint($_POST['ai_video_height']),
@@ -911,14 +915,13 @@ function mct_ai_optionpage() {
                 <tr>
                     <th scope="row">Edit post when made live?</th>
                     <td><input name="ai_edit_makelive" type="checkbox" id="ai_edit_makelive" value="1" <?php checked('1', $cur_options['ai_edit_makelive']); ?>  />
-                    <span>&nbsp;<em>Will create draft post and display in post editor on [Make Live]</em></span></td>     
+                    <span>&nbsp;<em>Will create draft post and display in post editor on [Make Live] (except for Bulk Actions)</em></span></td>     
                 </tr>  
-                <?php /* 
                 <tr>
-                    <th scope="row">&raquo;Open editor in new tab</th>
-                    <td><input name="ai_edit_tab" type="checkbox" id="ai_edit_tab" value="1" <?php checked('1', $cur_options['ai_edit_tab']); ?>  /></td>    
+                    <th scope="row">Do NOT show readable page in Training Popups </th>
+                    <td><input name="ai_no_inline_pg" type="checkbox" id="ai_no_inline_pg" value="1" <?php checked('1', $cur_options['ai_no_inline_pg']); ?>  />
+                    <span>&nbsp;<em>Check this if you have Formatting Problems on Training Page or Admin Training Posts</em></span></td>    
                 </tr>
-                 */ ?>
                 <tr>
                     <th scope="row">Make Post Date 'Immediately' when Made Live</th>
                     <td><input name="ai_now_date" type="checkbox" id="ai_now_date" value="1" <?php checked('1', $cur_options['ai_now_date']); ?>  /></td>    
@@ -963,6 +966,10 @@ function mct_ai_optionpage() {
                 <tr>
                     <th scope="row">Do Not Use Blockquotes on Excerpt</th>
                     <td><input name="ai_no_quotes" type="checkbox" id="ai_no_quotes" value="1" <?php checked('1', $cur_options['ai_no_quotes']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Do Not Show Training Tags on Live Site for Admins</th>
+                    <td><input name="ai_no_train_live" type="checkbox" id="ai_no_train_live" value="1" <?php checked('1', $cur_options['ai_no_train_live']); ?>  /></td>    
                 </tr>
                  <tr>
                     <th scope="row">Excerpt length in words:</th>
@@ -1015,6 +1022,10 @@ function mct_ai_optionpage() {
                 <tr>
                     <th scope="row">Shorten Links entry page?</th>
                     <td><input name="ai_short_linkpg" type="checkbox" id="ai_short_linkpg" value="1" <?php checked('1', $cur_options['ai_short_linkpg']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Remove Formatting Help</th>
+                    <td><input name="ai_no_fmthelp" type="checkbox" id="ai_no_fmthelp" value="1" <?php checked('1', $cur_options['ai_no_fmthelp']); ?>  /></td>    
                 </tr>
                 <tr>
                     <th scope="row">Keep Log for How Many Days?</th>
@@ -1304,7 +1315,7 @@ s=(e?e():(k)?k():(x?x.createRange().text:0)),
 f='" . plugins_url('mycurator/MyCurator_getit.php') . "',
 l=d.location,
 e=encodeURIComponent,
-u=f+'?u='+e(l.host+l.pathname)+'&t='+e(d.title)+'&s='+e(s)+'&v=4';
+u=f+'?u='+e(l.host+l.pathname+l.search)+'&t='+e(d.title)+'&s='+e(s)+'&v=4';
 a=function(){if(!w.open(u,'t','toolbar=0,resizable=1,scrollbars=1,status=1,width=520,height=400'))l.href=u;};
 if (/Firefox/.test(navigator.userAgent)) setTimeout(a, 0); else a();
 void(0)";
@@ -1573,35 +1584,10 @@ function mct_ai_createdb(){
             sl_page_id int(11) NOT NULL AUTO_INCREMENT,
             sl_page_content longtext NOT NULL,
             sl_post_id int(11),
-            PRIMARY KEY  (sl_page_id)
+            PRIMARY KEY  (sl_page_id),
+            KEY sl_post_id (sl_post_id)
     ) $charset_collate;";
     dbDelta($sql);
-}
-
-function mct_ai_getsavedpage($sl_id){
-    //this function returns the page content for a saved page given an id
-    global $ai_sl_pages_tbl, $wpdb;
-    
-    $sql = "SELECT `sl_page_content`
-            FROM $ai_sl_pages_tbl
-            WHERE sl_page_id = '$sl_id'";
-    $vals = $wpdb->get_row($sql, ARRAY_A);
-    return $vals['sl_page_content'];
-}
-
-function mct_ai_getsavedpageid($postid){
-    //this function returns an array of int saved page id's for the passed in post
-    $sl_id = array();
-    $newlinks = get_post_meta($postid,'mct_sl_newurl',true);
-    if (!empty($newlinks)){
-        foreach ($newlinks as $nlink){
-            $pos = preg_match('{/'.MCT_AI_REDIR.'/(.*)$}',$nlink,$matches);  //stripos($newlinks[$i],'ailink/');
-            if ($pos){
-                $sl_id[] = intval(trim($matches[1]));
-            }
-        }
-    }
-    return $sl_id;
 }
 
 function mct_ai_run_mycurator(){

@@ -1,4 +1,4 @@
-/* CSS for Tabs */
+/* CSS for Tabs V1.0.0*/
 .mct-ai-tabs .ui-tabs { position: relative; padding: .2em; zoom: 1; } /* position: relative prevents IE scroll bug (element with position: relative inside container with overflow: auto appear as "fixed") */
 .mct-ai-tabs .ui-tabs .ui-tabs-nav { margin: 0; padding: .2em .2em 0; }
 .mct-ai-tabs .ui-tabs .ui-tabs-nav li { list-style: none; float: left; position: relative; top: 0; margin: 1px .2em 0 0; border-bottom: 0; padding: 0; white-space: nowrap; }
