@@ -345,10 +345,8 @@ function mct_ai_trainpost($postid, $tname, $cat){
     $rel = new Relevance();
     $rel->get_db($tname);
     
-    //Get the page id from the post and get the page 
-    $sl_ids = mct_ai_getsavedpageid($postid);
-    if (count($sl_ids) != 1) return;  //Can only have one link if we train
-    $page = mct_ai_getsavedpage($sl_ids[0]);
+    //Get the page from the post
+    $page = mct_ai_getslpage($postid);
     if ($mct_ai_optarray['ai_utf8']) {
         $words = mct_ai_utf_words($page);
     } else {
@@ -368,6 +366,8 @@ function mct_ai_trainpost($postid, $tname, $cat){
         $vals = array($cat.':'.$tname);
     }
     update_post_meta($postid, 'mct_ai_trained', $vals);
+    //Set relevance tag
+    wp_set_object_terms($postid,$cat,'ai_class',false);
     
     unset($rel); //Done with the object
 }

@@ -1,36 +1,37 @@
 === MyCurator ===
 Contributors: mtilly
 Donate link: 
-Tags: content curation, curation tools, curation software, content marketing, content management, content discovery, marketing, SEO
+Tags: content curation, curation tools, curation software, curation plugin, content marketing, content management, content discovery, marketing, SEO
 Requires at least: 3.3
 Tested up to: 3.5
-Stable tag: 1.2.2
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator content curation software discovers fresh content and builds SEO for your WordPress site. 
+MyCurator plugin is content curation software that provides fresh content and builds SEO for your WordPress site. 
 
 == Description ==
 
-MyCurator is a complete content curation platform for WordPress blogs. 
+MyCurator is a professional content curation platform for WordPress sites. 
 MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts. 
 Rather than make you search for new content, it pushes personalized, targeted content to the private training page on your site. 
 Each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
 right in the WordPress editor.  You can easily grab quotes and images for your curated post, adding your insights 
-and comments, quickly creating newly curated content for your blog.
+and comments, quickly creating newly curated content for your site.
 
-Find out more on <a href="http://www.target-info.com/mycurator/" >MyCurator</a> and <a href="http://www.target-info.com/" >Content Curation</a>.
+Find out more at <a href="http://www.target-info.com/mycurator/" >MyCurator</a>.
 
 * Like a personal assistant, MyCurator saves you hours per day discovering content on the web, pushing it to your private training page
 * Simply train with thumbs up/down and weed out off-topic and spam articles
 * The full text and all images for each article are available as a meta box in the WordPress post editor.
 * Attribution to the original article is automatically inserted into the curated post.
-* Get It bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
-* MyCurator finds articles in any language, and all posts are in the native language of your blog.
+* Curated posts have access to SEO, theme options and other plugins of your environment just as with a regular post
+* Get It Bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
+* MyCurator finds articles in any language, and all posts are in the native language of your site.
 * Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
 * Source It Bookmarklet to easily capture feeds.
-* You can choose to automatically have the good articles posted to a specific category on your blog.
-* Or you may choose to manually curate the best insights from the articles into your own blog posts.
+* You can choose to automatically have the good articles posted to a specific category on your site.
+* Or you may choose to manually curate the best insights from the articles into your own site posts.
 * Each article is saved as a readable page, like Instapaper, using Diffbot technology.
 
 MyCurator is powerful corporate level software brought to you as a plugin.  It uses a cloud process to perform 
@@ -81,9 +82,16 @@ cloud services.
 
 2. Topic page tells MyCurator what to look for in your sources.
 
-3. New saved page meta box with images in WordPress post editor.
+3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.3.0 =
+* Upgrade to Ajax technology on training page for much faster processing
+* New Quick tag allows entry of comments/notes and immediate publishing or save to draft
+* Full article text popup and in Quick tag
+* Training Posts page in the WordPress admin now has full training tags for each article in a list format
+* Bulk curation options in Training Posts admin page, including the ability to change the author
 
 = 1.2.2 =
 * Video curation topic with the ability to embed videos in your posts automatically

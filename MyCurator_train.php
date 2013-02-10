@@ -22,7 +22,7 @@ if (isset($_GET['bad']) || isset($_GET['good'])){
         $pid = intval($_GET['good']);
     }
     check_admin_referer('mct_ai_train_'.$cat.$pid);
-    // Get the topic name
+    // Get the topic name 
     $terms = get_the_terms( $pid, 'topic' );
     $tname = '';
     if (count($terms) == 1 ) { //should only be one
@@ -53,56 +53,36 @@ if (isset($_GET['bad']) || isset($_GET['good'])){
         check_admin_referer('mct_ai_move'.$pid);
         mct_ai_movepost($pid);
     }
+    if (isset($_GET['draft'])){
+        if (!current_user_can('edit_published_posts')){
+            wp_die('Insufficient Priveleges to Move Post');
+        }
+        $pid = intval($_GET['draft']);
+        check_admin_referer('mct_ai_draft'.$pid);
+        mct_ai_traintoblog($pid,'draft');
+    }
+
     if (isset($_GET['multi'])){
         if (!current_user_can('edit_published_posts')){
             wp_die('Insufficient Priveleges to Move Post');
         }
         $pid = intval($_GET['multi']);
         check_admin_referer('mct_ai_multi'.$pid);
-        wp_set_object_terms($pid,'multi','ai_class',false);
+        mct_ai_train_multi($pid);
     }
 }
 $sendback = add_query_arg('ids',$pid, $sendback);
 wp_redirect($sendback);
 
 function mct_ai_movepost($thepost){
-    global $wpdb, $ai_topic_tbl, $mct_ai_optarray;
-    
-    //Move a post - change post type from target_ai to post
-    //read topic table for this category/tag
-    $topic = wp_get_object_terms($thepost,'topic',array('fields' => 'names'));
-    if (!empty($topic)) {
-        $tname = $topic[0];  //should always only be one
-        $sql = "SELECT topic_cat, topic_tag, topic_tag_search2 FROM $ai_topic_tbl WHERE topic_name = '$tname'";
-        $row = $wpdb->get_row($sql);
-        if (!empty($row)){
-            $details = array();
-            $details['ID'] = $thepost;
-            $details['post_category'] = array($row->topic_cat);
-            if ($row->topic_tag_search2){
-                $details['tags_input'] = get_post_meta($thepost,'mct_ai_tag_search2', true);
-            } else {
-                $tagterm = get_term($row->topic_tag,'post_tag');
-                $details['tags_input'] = array($tagterm->name);
-            }
-            $details['post_type'] = 'post';
-            if ($mct_ai_optarray['ai_edit_makelive']) {
-                $details['post_status'] = 'draft';
-                if ($mct_ai_optarray['ai_now_date']) {
-                    $details['edit_date'] = true;
-                    $details['post_date'] = '';
-                    $details['post_date_gmt'] = "0000-00-00 00:00:00";
-                }
-            } elseif ($mct_ai_optarray['ai_now_date']) {
-                $details['edit_date'] = true;
-                $details['post_date'] = '';
-            }
-            wp_update_post($details);
-            if ($mct_ai_optarray['ai_edit_makelive']){
-                $edit_url = get_edit_post_link( $thepost, array('edit' => '&amp;'));
-                wp_redirect($edit_url);
-                exit();
-            }
-        }
+    global $mct_ai_optarray;
+    if ($mct_ai_optarray['ai_edit_makelive']) {
+        mct_ai_traintoblog($thepost,'draft');
+        $edit_url = get_edit_post_link( $thepost, array('edit' => '&amp;'));
+        wp_redirect($edit_url);
+        exit();
+    } else {
+        mct_ai_traintoblog($thepost,'publish');
     }
 }
+?>

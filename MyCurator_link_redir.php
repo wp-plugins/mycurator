@@ -69,18 +69,16 @@ function mct_sl_deletefile($post_id){
     // Get the links from the meta data, allow for more than one
     $newlinks = get_post_meta($post_id,'mct_sl_newurl',true);
     if (!empty($newlinks)){
-        foreach ($newlinks as $nlink){
-            $pos = preg_match('{/'.MCT_AI_REDIR.'/(.*)$}',$nlink,$matches); 
-            if ($pos){
-                $sl_id = intval(trim($matches[1]));
-                $sql = "DELETE FROM $ai_sl_pages_tbl WHERE sl_page_id = $sl_id";
-                $del = $wpdb->query($sql);
-            }
-        }
-        //Delete featured image if being saved
-        if ($mct_ai_optarray['ai_save_thumb']) {
-            $thumb_id = get_post_meta($post_id, '_thumbnail_id',true);
-            if ($thumb_id) wp_delete_attachment($thumb_id,true);
+        $sql = "DELETE FROM $ai_sl_pages_tbl WHERE sl_post_id = $post_id";
+        $del = $wpdb->query($sql);
+        //Delete image if being saved
+        $thumb_id = get_post_meta($post_id, '_thumbnail_id',true);  //Post Thumbnail
+        if ($thumb_id) wp_delete_attachment($thumb_id,true);
+        //Now try inserted image
+        $ids = $wpdb->get_col("SELECT ID FROM {$wpdb->posts} WHERE post_parent = $post_id AND post_type = 'attachment'");
+        if (!empty($ids)) {
+            foreach ( $ids as $id )
+                    wp_delete_attachment($id);
         }
     }
 }
@@ -114,5 +112,83 @@ function mct_sl_linkmetashow($post){
     </table> <?php
 }
 
+function mct_ai_getslpage($post_id){
+    //this function returns the page content given a post id
+    global $ai_sl_pages_tbl, $wpdb;
+    
+    $sql = "SELECT `sl_page_content`
+            FROM $ai_sl_pages_tbl
+            WHERE sl_post_id = $post_id";
+    $vals = $wpdb->get_col($sql);
+    if (empty($vals)) return '';
+    return $vals[0];
+}
 
+function mct_ai_getslarticle($page){
+    //Gets the article contents out of the page
+    
+    if (empty($page)) return '';
+    //$page has the content, with html, using the format of rendered page, separate sections
+    $cnt = preg_match('{<span class="mct-ai-article-content">(.*)}si',$page,$matches);  //don't stop at end of line
+    $article = $matches[1];
+    $article = preg_replace('{</span></div></body></html>}','',$article);
+    return $article;
+}
+
+function mct_ai_getlinkredir($post_id) {
+   //this function returns the redirect link to the saved page given a post id
+    global $ai_sl_pages_tbl, $wpdb;
+    
+    $sql = "SELECT `sl_page_id`
+            FROM $ai_sl_pages_tbl
+            WHERE sl_post_id = $post_id";
+    $vals = $wpdb->get_col($sql);
+    if (empty($vals)) return '';  
+    $page_id = $vals[0];
+       //Set the redirect link
+    if (is_multisite()){
+        if ($blog_id == 1){
+            $link_redir = network_site_url().'blog/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
+        } else {
+            $link_redir = site_url().'/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
+        }
+    } else {
+        $link_redir = site_url().'/'.MCT_AI_REDIR.'/'.trim(strval($page_id));
+    }
+    return $link_redir;
+}
+
+function mct_ai_notable_article($page){
+    //If table at beginning, don't get article, add other checks here as we find them
+    $article = mct_ai_getslarticle($page);
+    if (empty($article)) return $article;
+    $msg = "<p>Invalid Article Format - Cannot display text on this page</p>
+        <p>The article text will still be available in the editor</p>
+        <p>Use the link to the original article web page in the URL column to review this article</p>";
+    
+    $pos = preg_match('{^[\s]*<t}i',$article,$matches);
+    if ($pos) return $msg;
+    $pos = preg_match('{^[\s]*</div>}i',$article,$matches);
+    if ($pos) return $msg;
+    $pos = preg_match('{^[\s]*<body>}i',$article,$matches);
+    if ($pos) return $msg;
+    
+    return $article;
+}
+
+function mct_ai_clean_article($page){
+    //Clean articles for training page
+    $article = mct_ai_getslarticle($page);
+    if (empty($article)) return $article;
+    $msg = "<p>Invalid Article Format - Cannot display text on this page</p>
+        <p>The article text will still be available in the editor</p>
+        <p>Use the link to the original article web page to review this article</p>";
+    
+    $pos = preg_match('{^[\s]*<body>}i',$article,$matches);
+    if ($pos) return $msg;
+    $pos = preg_match('{^[\s]*</div>}i',$article,$matches);
+    if ($pos) return $msg;
+    
+    return $article;
+}
 ?>
