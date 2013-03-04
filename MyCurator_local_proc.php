@@ -7,7 +7,6 @@
 //add action to set cache duration on simplepie
 add_action('wp_feed_options', 'mct_ai_set_simplepie');
 
-define ('MCT_AI_OLDPOSTSREAD', '7');
 //this should be shorter than the interval in which we run cron, but longer than the longest running time of the process
 define ('MCT_AI_PIE_CACHE',3600);  
     
@@ -40,6 +39,9 @@ function mct_ai_process_topic($topic){
     //Process all feeds and items within a topic
     //$topic is an array with each field from the topics file
     global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
+    
+    $lookback = (empty($mct_ai_optarray['ai_lookback_days'])) ? 7 : $mct_ai_optarray['ai_lookback_days'];
+    $farback = $lookback + 60;
     
     mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Start Processing Topic ', '');
     //Set up the topic info for the cloud service
@@ -81,10 +83,10 @@ function mct_ai_process_topic($topic){
             foreach ($thefeed->get_items() as $item){
                 //See if old post
                 $postdate = new DateTime($item->get_date());
-                $postdate->modify('+'.MCT_AI_OLDPOSTSREAD.' day');  //add number of days we keep posts read around
+                $postdate->modify('+'.$lookback.' day');  //add number of days we keep posts read around
                 // $a = $nowdate->diff($postdate,true)->days; for version 5.3 or later only
                 if ($postdate < $nowdate){
-                    $postdate->modify('+60 day');
+                    $postdate->modify('+'.$farback.' day');
                     if ($postdate > $nowdate){
                         $onlyoldposts = false;
                     }
@@ -152,7 +154,7 @@ function mct_ai_get_page($item, $topic, &$post_arr){
     //If twitter search feed, get embedded links or return '' if none
     if (stripos($ilink,'twitter.com') !== false){
         $desc = $item->get_description();
-        $cnt = preg_match('{http://t.co/([^"]*)"}',$desc,$matches);
+        $cnt = preg_match('{http://t.co/([^"\s]*)["\s]?}',$desc,$matches);
         if ($cnt) {
             $elink = $ilink = trim('http://t.co/'.$matches[1]);  //get just first link
             $ilink = mct_ai_tw_expandurl($ilink);
@@ -160,7 +162,7 @@ function mct_ai_get_page($item, $topic, &$post_arr){
                 mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, "Could Not Resolve Twitter Link",$elink);
                 return '';
             }
-            //mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'Twitter Article Found',$ilink);
+            //mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'Twitter Article Found',$ilink);  //TESTING ONLY
         } else {
             return '';  //No link found
         }
@@ -429,15 +431,17 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         $details['post_excerpt'] = $post_content;
     }
     //Use topic & aiclass in all cases
+    $terms = get_term_by( 'name', $topic['topic_name'], 'topic');
+    $topic_slug = $terms->slug;
     if ($topic['topic_type'] != 'Relevance'){
         $details['tax_input'] = array (  //add topic name 
-        'topic' => $topic['topic_name']
+        'topic' => $topic_slug
         );
-    }
-    if ($topic['topic_type'] == 'Relevance'){
+    } else {
+        $terms = get_term_by( 'name', $post_arr['classed'], 'ai_class');
         $details['tax_input'] = array (  //add topic name 
-        'topic' => $topic['topic_name'],
-        'ai_class' => $post_arr['classed'] //add ai class
+        'topic' => $topic_slug,
+        'ai_class' => $terms->slug //add ai class
         );
     }
     //check if active using relevance engine, but post is bad or unknown
@@ -613,7 +617,7 @@ function mct_ai_clean_postsread($pread){
     global $ai_postsread_tbl, $mct_ai_optarray, $wpdb, $ai_logs_tbl;
     
     if ($pread){
-        $feed_back = MCT_AI_OLDPOSTSREAD;
+        $feed_back = (empty($mct_ai_optarray['ai_lookback_days'])) ? 7 : $mct_ai_optarray['ai_lookback_days'];
         //If not updated since log_days, get rid of entries
         $sql = "DELETE FROM $ai_postsread_tbl
                 WHERE pr_date < ADDDATE(NOW(),-".$feed_back.")";

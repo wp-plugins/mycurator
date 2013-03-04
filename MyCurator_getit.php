@@ -205,21 +205,25 @@ jQuery(document).ready(function($) {
         <br />               
         <?php //Get Values from Db
         $sql = "SELECT `topic_name` FROM $ai_topic_tbl WHERE topic_status != 'Inactive'";
-        $topics = $wpdb->get_col($sql); ?>
-        <div id="categorydiv" class="postbox">
-                <h3 class="hndle"><?php _e('Topics') ?></h3>
-                <div class="inside">
-                <div id="taxonomy-category" class="categorydiv">
-                    <?php $check = "checked"; foreach ($topics as $topic) { ?>
-                    <p><input name="post_category" type="radio" value="<?php echo $topic; ?>" <?php echo $check; ?>  /> <?php echo $topic; ?></p>
-                    <?php $check = ""; } ?>
-                </div>
-                </div>
-         </div>
-        <?php
-        //submit_button( __( 'Publish' ), 'primary', 'publish', true ); ?>
-        <input name="submit" id="submit" value="Save to Training Page" type="submit" class="button-primary">
-        <img src="<?php echo esc_url( admin_url( 'images/wpspin_light.gif' ) ); ?>" alt="" id="saving" style="display:none;" />
+        $topics = $wpdb->get_col($sql); 
+        if (empty($topics)) {
+            echo "<h2>You must first create a Topic in MyCurator to use the Get It Bookmarklet</h2>";
+            echo '<input name="close" id="close" value="Close" type="submit" class="button-primary" onclick="window.close(); return false;">';
+        } else { ?>
+        
+            <div id="categorydiv" class="postbox">
+                    <h3 class="hndle"><?php _e('Topics') ?></h3>
+                    <div class="inside">
+                    <div id="taxonomy-category" class="categorydiv">
+                        <?php $check = "checked"; foreach ($topics as $topic) { ?>
+                        <p><input name="post_category" type="radio" value="<?php echo $topic; ?>" <?php echo $check; ?>  /> <?php echo $topic; ?></p>
+                        <?php $check = ""; } ?>
+                    </div>
+                    </div>
+             </div>
+            <input name="submit" id="submit" value="Save to Training Page" type="submit" class="button-primary">
+            <img src="<?php echo esc_url( admin_url( 'images/wpspin_light.gif' ) ); ?>" alt="" id="saving" style="display:none;" />
+        <?php } //else on topics ?>
         </div>
 </div>
 </form>
