@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com/mycurator/
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -62,6 +62,7 @@ if (empty($mct_ai_optarray)){
         'ai_orig_text' => 'Click here to view original web page at',
         'ai_save_text' => 'Click here to view full article',
         'ai_embed_video' => "1",
+        'ai_lookback_days' => 7,
         'ai_train_days' => 7
     );
     update_option('mct_ai_options',$mct_ai_optarray);
@@ -159,9 +160,11 @@ function mct_ai_createmenu() {
     add_submenu_page(__FILE__,'Topics', 'Topics','manage_links',__FILE__.'_alltopics','mct_ai_mainpage');
     add_submenu_page(__FILE__,'New Topic','New Topic','manage_links',__FILE__.'_newtopic','mct_ai_topicpage');
     add_submenu_page(__FILE__,'Topic Sources Manager','Topic Source','manage_links',__FILE__.'_topicsource','mct_ai_topicsource');
-    add_submenu_page(__FILE__,'Remove','Remove','manage_links',__FILE__.'_remove','mct_ai_removepage');
+    add_submenu_page(__FILE__,'Remove Topic','Remove Topic','manage_links',__FILE__.'_remove','mct_ai_removepage');
     $optionspage = add_submenu_page(__FILE__,'Options', 'Options','manage_links',__FILE__.'_options','mct_ai_optionpage');
     $getpage = add_submenu_page(__FILE__,'Get It & Source It', 'Get It & Source It','manage_links',__FILE__.'_getit','mct_ai_getitpage');
+    add_submenu_page(__FILE__,'Source Quick Add', 'Source Quick Add', 'edit_posts','mct_ai_quick_source', 'mct_ai_quick_source'); //Quick Add
+    add_submenu_page(__FILE__,'Create News Feed', 'News or Twitter', 'edit_posts', 'bwc_create_news', 'bwc_create_news');// Google News Feed
     add_submenu_page(__FILE__,'Logs','Logs','manage_links',__FILE__.'_Logs','mct_ai_logspage');
     add_submenu_page(__FILE__,'Report','Report','manage_links',__FILE__.'_Report','mct_ai_logreport');
     
@@ -783,6 +786,7 @@ function mct_ai_optionpage() {
             'ai_on' => ($_POST['ai_on'] == FALSE ? FALSE : TRUE),
             'ai_cloud_token' => trim($_POST['ai_cloud_token']),
             'ai_train_days' => absint($_POST['ai_train_days']),
+            'ai_lookback_days' => absint($_POST['ai_lookback_days']),
             'ai_short_linkpg' => absint($_POST['ai_short_linkpg']),
             'ai_save_thumb' => absint($_POST['ai_save_thumb']),
             'ai_cron_period' => $_POST['ai_cron_period'],
@@ -807,11 +811,20 @@ function mct_ai_optionpage() {
             'ai_no_inline_pg' => absint($_POST['ai_no_inline_pg']),
             'ai_no_train_live' => absint($_POST['ai_no_train_live']),
             'ai_no_fmthelp' => absint($_POST['ai_no_fmthelp']),
+            'ai_show_full'  => absint($_POST['ai_show_full']),
             'ai_embed_video' => absint($_POST['ai_embed_video']),
             'ai_video_width' => absint($_POST['ai_video_width']),
             'ai_video_height' => absint($_POST['ai_video_height']),
             'ai_plan' => $mct_ai_optarray['ai_plan']
         );
+        //Validation
+        if (empty($opt_update['ai_log_days'])) $opt_update['ai_log_days'] = 7;
+        if ($opt_update['ai_log_days'] > 90) $opt_update['ai_log_days'] = 90;
+        if (empty($opt_update['ai_train_days'])) $opt_update['ai_train_days'] = 7;
+        if ($opt_update['ai_train_days'] > 90) $opt_update['ai_train_days'] = 90;
+        if (empty($opt_update['ai_lookback_days'])) $opt_update['ai_lookback_days'] = 7;
+        if ($opt_update['ai_lookback_days'] > 90) $opt_update['ai_lookback_days'] = 90;
+        
         update_option('mct_ai_options',$opt_update);
         $msg = 'Options have been updated';
         //Set up cron for auto processing
@@ -834,12 +847,12 @@ function mct_ai_optionpage() {
     }
     //Get Options
     $cur_options = get_option('mct_ai_options');
+    //Set values that may be empty after upgrade from older version
     if (empty($cur_options['ai_cron_period'])) $cur_options['ai_cron_period'] = '6';
-    //if (empty($cur_options['ai_orig_text'])) $cur_options['ai_orig_text'] = 'Click here to view original web page at';
-    //if (empty($cur_options['ai_save_text'])) $cur_options['ai_save_text'] = 'Click here to view full article';
     if (empty($cur_options['ai_num_posts'])) $cur_options['ai_num_posts'] = 10;
     if (empty($cur_options['ai_video_width'])) $cur_options['ai_video_width'] = 400;
     if (empty($cur_options['ai_video_height'])) $cur_options['ai_video_height'] = 300;
+    if (empty($cur_options['ai_lookback_days'])) $cur_options['ai_lookback_days'] = 7;
     ?>
     <script>
     //<![CDATA[
@@ -917,6 +930,11 @@ function mct_ai_optionpage() {
                     <td><input name="ai_edit_makelive" type="checkbox" id="ai_edit_makelive" value="1" <?php checked('1', $cur_options['ai_edit_makelive']); ?>  />
                     <span>&nbsp;<em>Will create draft post and display in post editor on [Make Live] (except for Bulk Actions)</em></span></td>     
                 </tr>  
+                <tr>
+                    <th scope="row">Show full Article Text in Single Post Page? </th>
+                    <td><input name="ai_show_full" type="checkbox" id="ai_show_full" value="1" <?php checked('1', $cur_options['ai_show_full']); ?>  />
+                    <span>&nbsp;<em>Not recommended, you may be open to copyright and other issues with original article owner - see <a href="http://www.target-info.com/documentation-2/documentation-options/">Options</a> documentation</em></span></td>    
+                </tr>
                 <tr>
                     <th scope="row">Do NOT show readable page in Training Popups </th>
                     <td><input name="ai_no_inline_pg" type="checkbox" id="ai_no_inline_pg" value="1" <?php checked('1', $cur_options['ai_no_inline_pg']); ?>  />
@@ -1029,12 +1047,19 @@ function mct_ai_optionpage() {
                 </tr>
                 <tr>
                     <th scope="row">Keep Log for How Many Days?</th>
-                    <td><input name="ai_log_days" type="text" id="ai_log_days" size ="5" value="<?php echo $cur_options['ai_log_days']; ?>"  /></td>    
+                    <td><input name="ai_log_days" type="text" id="ai_log_days" size ="5" value="<?php echo $cur_options['ai_log_days']; ?>"  />
+                    <em>Between 1 and 90 days</em></td>    
                 </tr>
                 <tr>
                     <th scope="row">Keep Training Posts for How Many Days?</th>
-                    <td><input name="ai_train_days" type="text" id="ai_train_days" size ="5" value="<?php echo $cur_options['ai_train_days']; ?>"  /></td>    
-                </tr>                   
+                    <td><input name="ai_train_days" type="text" id="ai_train_days" size ="5" value="<?php echo $cur_options['ai_train_days']; ?>"  />
+                    <em>Between 1 and 90 days</em></td>    
+                </tr>     
+                 <tr>
+                    <th scope="row">Look back How Many Days for Articles?</th>
+                    <td><input name="ai_lookback_days" type="text" id="ai_lookback_days" size ="5" value="<?php echo $cur_options['ai_lookback_days']; ?>"  />
+                    <em>Between 1 and 90 days</em></td>    
+                </tr>     
                 </table>
             </div>
          </div>
@@ -1357,6 +1382,9 @@ function mct_ai_logspage() {
     if (isset($_POST['Filter'])){
         $currentPage = 1;  //reset paging when a filter selected
     }
+    if (isset($_POST['Reset-Log'])){
+        mct_ai_clearlogs();
+    }
     //Get total rows available
     $sql = "SELECT COUNT(*) as myCount FROM " .$ai_logs_tbl;
     if (!empty($topic) && !empty($type)){
@@ -1384,6 +1412,12 @@ function mct_ai_logspage() {
     <h2>MyCurator Logs</h2>    
      <p>MyCurator keeps logs of what it does with each article found in your feed sources.  
         See <a href="http://www.target-info.com/documentation-2/documentation-logs/" >Logs Documentation</a> for more details.</p>
+     <p>You can reset the logs and the filter that keeps articles from being re-read.  If you do this, you will most likely
+         get duplicate articles on your training page as previous articles are reprocessed.  Use this if you have made changes 
+         to your Topics or Formatting options and wish to reset MyCurator to process all articles again.
+         <form id="Reset" method="post" >
+         <input name="Reset-Log" value="Reset Logs" type="submit" class="button-secondary" onclick="return confirm('Are you sure you want to Reset MyCurator Logs?  You may end up with a lot of duplicate articles on your training page!');" >
+         </form></p>
     <?php
        print("<div class=\"tablenav\">"); 
        $qargs = array(
@@ -1695,6 +1729,21 @@ function mct_ai_showplan($display=true, $upgrade=true){
     <?php }
     return ob_get_clean();
 }
+
+function mct_ai_clearlogs(){
+    //Clears postsread and logs to reset mycurator
+    global $ai_postsread_tbl, $mct_ai_optarray, $wpdb, $ai_logs_tbl;
+    
+    //clear out Postsread table
+    $sql = "DELETE FROM $ai_postsread_tbl";
+    $pr_row = $wpdb->query($sql);
+
+    //clear out ai_log
+    $sql = "DELETE FROM $ai_logs_tbl";
+    $pr_row = $wpdb->query($sql);
+
+}
+
 //These are the stopwords that will be ignored in classifying a document
 $stopwords = array('a', 'about', 'above', 'above', 'across', 'after', 'afterwards', 'again', 'against', 'all', 'almost', 'alone',
  'along', 'already', 'also','although','always','am','among', 'amongst', 'amoungst', 'amount',  'an', 'and', 'another', 'any',

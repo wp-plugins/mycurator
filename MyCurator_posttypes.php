@@ -505,6 +505,15 @@ function mct_ai_inlinetb($post_id){
 
    //inline page thickbox div
     $page = mct_ai_getslpage($post_id);
+    if (is_admin()) {
+        $article = mct_ai_notable_article($page); 
+    } else {
+        $article = mct_ai_clean_article($page);
+    }
+    // Get original URL
+    $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
+    $linktxt = $matches[1].' target="_blank">'.$matches[2].'</a>';
+    $article = '<p>'.$linktxt.'</p>'.$article;
     ?>
     <div id="ai-quick-<?php echo $post_id; ?>" style="max-width: 540px; display: none;">
     <h2 style="text-align: center;">Quickly Publish or Save as Draft</h2>
@@ -520,12 +529,7 @@ function mct_ai_inlinetb($post_id){
         <hr width="90%">
         <h2 style="text-align: center;">Original Article Text</h2>
         <div id="ai-page-<?php echo $post_id; ?>" style="max-width: 540;">
-        <p><?php if (is_admin()) {
-            echo mct_ai_notable_article($page); 
-        } else {
-            echo mct_ai_clean_article($page);
-        }
-        ?></p>
+        <p><?php echo $article; ?></p>
         </div>
     <?php } ?>
     </div>
@@ -596,36 +600,47 @@ function mct_ai_inline_fmthelp(){
 function mct_ai_traintags($content){
     //filter on the_content - add training tags
     // if single, display full text on post
-    global $post;
+    global $post, $mct_ai_optarray;
     
     if (is_single() || is_feed()) {
-        //Get the article link, should only be one if MyCurator posted this
+        //Get the article link, should only be one if MyCurator posted this - for backward compatibility
         $cnt = preg_match_all('{<a\s(.*)/ailink/[0-9]+"\s*>}',$content,$matches);
-        if ($cnt == 1) {
-             $linktxt = $matches[0][0]; 
-             $page = mct_ai_getslpage($post->ID);
-             $article = mct_ai_getslarticle($page);
-             $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
-             //Check for MyCurator auto-post excerpt
-             if (stripos($content,'<blockquote id="mct_ai_excerpt">') !== false) {
+        if (!empty($mct_ai_optarray['ai_show_full']) || $cnt == 1) {
+            // Display full text in this page if we have it
+            $page = mct_ai_getslpage($post->ID);
+            if (!empty($page)){
+                 $article = mct_ai_getslarticle($page);
+                 $rcnt = 0; //replacement count
+                 //Get the article link, should only be one 
+                 if ($cnt == 1){
+                    $linktxt = $matches[0][0]; 
+                 } else $linktxt = '';
                  //Put in Source URL
+                 $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
                  $content = $matches[1].'> '.$matches[2].'</a>'.$content;
-                 //Replace the excerpt with the full article
-                 $content = preg_replace('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',"<br />".$article,$content);
-             } elseif (stripos($content,'<p id="mct_ai_excerpt">') !== false) {
-                 //Put in Source URL
-                 $content = $matches[1].'> '.$matches[2].'</a>'.$content;
-                 //Replace the excerpt with the full article
-                 $content = preg_replace('{<p id="mct_ai_excerpt">([^<]*)</p>}',"<br />".$article,$content);
-
-             } else {
-                 //Put in Source URL
-                 $content = $matches[1].'> '.$matches[2].'</a>'.$content;
-                 //Keep the content as it has been changed from simple excerpt
-                 //Place the article in front of the link
-                 $pos = stripos($content,$linktxt);
-                 $content = substr($content,0,$pos)."<br />".$article."<br />".substr($content,$pos);
-             }
+                 //Decide where to put this article
+                 if (stripos($content,'<blockquote id="mct_ai_excerpt">') !== false) {
+                     //Replace the excerpt with the full article
+                     $content = preg_replace('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',"<br />".$article,$content,-1,$rcnt);
+                     if (!$rcnt) $content = $content."<br>".$article; //Replace failed, Just put it at the end...
+                 } elseif (stripos($content,'<p id="mct_ai_excerpt">') !== false) {
+                     //Replace the excerpt with the full article
+                     $content = preg_replace('{<p id="mct_ai_excerpt">([^<]*)</p>}',"<br />".$article,$content,-1,$rcnt);
+                     if (!$rcnt) $content = $content."<br>".$article; //Replace failed, Just put it at the end...
+                 } elseif (!empty($linktxt)) {
+                     //Keep the content as it has been changed from simple excerpt
+                     //Place the article in front of the link
+                     $pos = stripos($content,$linktxt);
+                     $content = substr($content,0,$pos)."<br />".$article."<br />".substr($content,$pos);
+                 } elseif (($linkpos = stripos($content,'<p id="mct-ai-attriblink">')) !== false){
+                     //Keep the content as it has been changed from simple excerpt
+                     //Place the article in front of the link
+                     $content = substr($content,0,$linkpos)."<br />".$article."<br />".substr($content,$linkpos);
+                 } else {
+                     //Just put it at the end...
+                     $content = $content."<br>".$article;
+                 }
+            }
         }
     }
     $trainstr =  mct_ai_addtrain();
@@ -966,8 +981,8 @@ function mct_ai_linkmeta(){
 
 //Add the Create News/Twitter menu item
 function bwc_add_link_alerts(){
-    add_links_page('Source Quick Add', 'Source Quick Add', 'edit_posts','mct_ai_quick_source', 'mct_ai_quick_source'); //Quick Add
-    add_links_page('Create News Feed', 'News or Twitter', 'edit_posts', 'bwc_create_news', 'bwc_create_news');// Google News Feed
+    //add_links_page('Source Quick Add', 'Source Quick Add', 'edit_posts','mct_ai_quick_source', 'mct_ai_quick_source'); //Quick Add
+    //add_links_page('Create News Feed', 'News or Twitter', 'edit_posts', 'bwc_create_news', 'bwc_create_news');// Google News Feed
 }
 
 function mct_ai_quick_source() {
@@ -1059,6 +1074,8 @@ function mct_ai_quick_source() {
 function bwc_create_news(){
 
     $msg = '';
+    $follow = false;
+    $feed_type = true;
     //Get Link Categories for dropdown
     $cats = array (
         'orderby' => 'name',
@@ -1089,12 +1106,29 @@ function bwc_create_news(){
             $feed_type = false;
         }
         //Get the keywords and set the url
-        $newsterm = urlencode($args['keywords']); 
+        if (strpos($args['keywords'],'@')!== false) {
+            if ($feed_type) {
+                $msg = "Cannot use Twitter Username in Google News feed.  ";
+            } else {
+                if (preg_match('/^@([a-z0-9_]{1,15})$/i',$args['keywords'],$match)) {
+                    $newsterm = $match[1];
+                    $follow = true;
+                } else {
+                    $msg = "Twitter username not valid, only one allowed and must be a-z, 0-9, _ and 15 characters or less.  ";
+                }
+            }
+        } else {
+            $newsterm = urlencode($args['keywords']); 
+        }
         if ($feed_type) {
             $args['rss-url'] = 'http://news.google.com/news?hl=en&gl=us&q='.$newsterm.'&um=1&ie=UTF-8&output=rss'; //Google news feed
             $args['save-url'] = 'http://news.google.com/';
         } else {
-            $args['rss-url'] = 'http://search.twitter.com/search.rss?q='.$newsterm;  //twitter search string
+            if ($follow) {
+                $args['rss-url'] = 'http://api.twitter.com/1/statuses/user_timeline.rss?screen_name='.$newsterm;
+            } else {
+                $args['rss-url'] = 'http://search.twitter.com/search.rss?q='.$newsterm;  //twitter search string
+            }
             $args['save-url'] = 'http://search.twitter.com/';
         }
         //Validate args
@@ -1130,18 +1164,18 @@ function bwc_create_news(){
        <div id="message" class="<?php echo $msgclass; ?>" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php } ?>    
     <p>Use this option to create a google news feed or twitter search that will be placed into your links for the link category you choose.  
-        You can then use this
-        feed in any of your MyCurator Topics by including the link category as a source.</p>
+        You can also follow a twitter user by choosing Twitter Search Feed and entering their @username in the Keywords.
+        You can then use this feed in any of your MyCurator Topics by including the link category as a source.</p>
     <p><strong>All fields are required except a New Link Category</strong></p>
     <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] ); ?>"> 
         <table class="form-table" >
             <tr>
                 <th scope="row">Google News Feed? </th>
-                <td><input name="ftype" type="radio" value="G" checked /></td>
+                <td><input name="ftype" type="radio" value="G" <?php if ($feed_type) echo 'checked="checked"'; ?> /></td>
             </tr>
             <tr>
                 <th scope="row">Twitter Search Feed? </th>
-                <td><input name="ftype" type="radio" value="N" unchecked /></td>    
+                <td><input name="ftype" type="radio" value="N" <?php if (!$feed_type) echo 'checked="checked"'; ?> /></td>    
             </tr>  
             <tr>
                 <th scope="row">Feed Name</th>
@@ -1149,7 +1183,8 @@ function bwc_create_news(){
             </tr>            
             <tr>
                 <th scope="row">Feed Keywords</th>
-                <td><input name="keywords" type="input" id="keywords" size="50" maxlength="200" value="<?php echo esc_attr($args['keywords']); ?>" /></td>    
+                <td><input name="keywords" type="input" id="keywords" size="50" maxlength="200" value="<?php echo esc_attr($args['keywords']); ?>" />
+                    <em>You can follow a twitter user by entering their name as @username (only one may be entered)</em></td>    
             </tr>
             <tr>
                 <th scope ="row">Link Category for Feed</th>
@@ -1341,7 +1376,7 @@ if (!class_exists('mct_ai_Custom_Bulk_Action')) {
 		function custom_bulk_admin_notices() {
 			global $post_type, $pagenow, $mct_ai_optarray;
                         
-			
+			if (isset($_REQUEST['post_status']) && $_REQUEST['post_status'] == 'trash') return;
                         $message = '';
 			if($pagenow == 'edit.php' && $post_type == 'target_ai' && isset($_REQUEST['postedlive']) && (int) $_REQUEST['postedlive']) {
 				$message = sprintf( _n( 'Posts made live', '%s posts made live.', $_REQUEST['postedlive'] ), number_format_i18n( $_REQUEST['postedlive'] ) );

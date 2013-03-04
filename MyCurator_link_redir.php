@@ -164,7 +164,7 @@ function mct_ai_notable_article($page){
     if (empty($article)) return $article;
     $msg = "<p>Invalid Article Format - Cannot display text on this page</p>
         <p>The article text will still be available in the editor</p>
-        <p>Use the link to the original article web page in the URL column to review this article</p>";
+        <p>Use the link to the original article web page to review this article</p>";
     
     $pos = preg_match('{^[\s]*<t}i',$article,$matches);
     if ($pos) return $msg;

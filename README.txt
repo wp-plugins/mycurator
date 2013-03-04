@@ -4,7 +4,7 @@ Donate link:
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, content management, content discovery, marketing, SEO
 Requires at least: 3.3
 Tested up to: 3.5
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,27 +12,26 @@ MyCurator plugin is content curation software that provides fresh content and bu
 
 == Description ==
 
-MyCurator is a professional content curation platform for WordPress sites. 
-MyCurator works behind the scenes every day to find new articles, and new inspiration, for your curation efforts. 
-Rather than make you search for new content, it pushes personalized, targeted content to the private training page on your site. 
-Each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
-right in the WordPress editor.  You can easily grab quotes and images for your curated post, adding your insights 
+MyCurator is professional content curation software for WordPress sites. 
+MyCurator works tirelessly in the background delivering a pipeline of content to you through the day, ready for your curation efforts. 
+Integrated into WordPress, each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
+ready to use your SEO, theme styling and plugins.  You can easily grab quotes and images for your curated post, adding your insights 
 and comments, quickly creating newly curated content for your site.
 
-Find out more at <a href="http://www.target-info.com/mycurator/" >MyCurator</a>.
+Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 
-* Like a personal assistant, MyCurator saves you hours per day discovering content on the web, pushing it to your private training page
-* Simply train with thumbs up/down and weed out off-topic and spam articles
+* Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk curation tools.
+* Customize to your specific niche by choosing what sources to read and what to look for in each article
+* For even more content accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
 * The full text and all images for each article are available as a meta box in the WordPress post editor.
 * Attribution to the original article is automatically inserted into the curated post.
 * Curated posts have access to SEO, theme options and other plugins of your environment just as with a regular post
 * Get It Bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
+* Special Video curation features to find and embed videos directly into curated posts.
 * MyCurator finds articles in any language, and all posts are in the native language of your site.
 * Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
-* Source It Bookmarklet to easily capture feeds.
-* You can choose to automatically have the good articles posted to a specific category on your site.
-* Or you may choose to manually curate the best insights from the articles into your own site posts.
-* Each article is saved as a readable page, like Instapaper, using Diffbot technology.
+* Source It Bookmarklet to easily capture RSS feeds.
+* Selective Auto-Post capability uses AI process to deliver highly targeted, quality articles to your community.
 
 MyCurator is powerful corporate level software brought to you as a plugin.  It uses a cloud process to perform 
 intensive AI processing and article classification.  This allows MyCurator to maintain a low processing overhead on your blog.
@@ -85,6 +84,16 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.3.1 =
+* Add support for twitter account following (such as @tgtinfo) in Twitter Search
+* Support finding article link in twitter stream not embedded as html
+* Ability to reset logs and re-read articles after changing Topics or formatting
+* New option to change the initial look back period for articles up to 90 days
+* Fix to validate numeric Admin options between 1 and 90 days
+* Move Source Quick Add and News or Twitter menu items to MyCurator menu from Links menu
+* Option to display full text readable page on single post page even with Original Article link
+* Remove format problems information from Training Posts trash page
 
 = 1.3.0 =
 * Upgrade to Ajax technology on training page for much faster processing
