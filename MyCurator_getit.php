@@ -17,9 +17,9 @@ require_once('../../../wp-admin/admin.php');
 
 header('Content-Type: ' . get_option('html_type') . '; charset=' . get_option('blog_charset'));
 
-if ( ! current_user_can('edit_posts') )
+if ( ! current_user_can('publish_posts') )
 	wp_die( __( 'Cheatin&#8217; uh?' ) );
-
+get_currentuserinfo();
 /**
  * Press It form handler.
  *
@@ -204,8 +204,8 @@ jQuery(document).ready(function($) {
 
         <br />               
         <?php //Get Values from Db
-        $sql = "SELECT `topic_name` FROM $ai_topic_tbl WHERE topic_status != 'Inactive'";
-        $topics = $wpdb->get_col($sql); 
+        $sql = "SELECT `topic_name`, `topic_options` FROM $ai_topic_tbl WHERE topic_status != 'Inactive'";
+        $topics = $wpdb->get_results($sql, ARRAY_A); 
         if (empty($topics)) {
             echo "<h2>You must first create a Topic in MyCurator to use the Get It Bookmarklet</h2>";
             echo '<input name="close" id="close" value="Close" type="submit" class="button-primary" onclick="window.close(); return false;">';
@@ -215,8 +215,11 @@ jQuery(document).ready(function($) {
                     <h3 class="hndle"><?php _e('Topics') ?></h3>
                     <div class="inside">
                     <div id="taxonomy-category" class="categorydiv">
-                        <?php $check = "checked"; foreach ($topics as $topic) { ?>
-                        <p><input name="post_category" type="radio" value="<?php echo $topic; ?>" <?php echo $check; ?>  /> <?php echo $topic; ?></p>
+                        <?php $check = "checked"; foreach ($topics as $topic) { 
+                            $topic = mct_ai_get_topic_options($topic);
+                            if (! current_user_can('edit_others_posts') && $topic['opt_post_user'] != $user_login) continue;
+                        ?>
+                        <p><input name="post_category" type="radio" value="<?php echo $topic['topic_name']; ?>" <?php echo $check; ?>  /> <?php echo $topic['topic_name']; ?></p>
                         <?php $check = ""; } ?>
                     </div>
                     </div>

@@ -32,6 +32,8 @@ add_filter('the_excerpt', 'mct_ai_traintags', 20);
 add_action('wp_enqueue_scripts','mct_ai_insertjs');
 //Ajax handler
 add_action('wp_ajax_mct_ai_train_ajax','mct_ai_train_ajax');
+//Capability for author to see training page 
+add_filter('user_has_cap','mct_ai_hascap',10,3);
 
 function mct_ai_register(){
     //Registers custom post type targets
@@ -86,7 +88,7 @@ function mct_ai_register(){
             'manage_terms' => 'manage_network', //by default only super admin - shouldn't be available
             'edit_terms' => 'manage_network',
             'delete_terms' => 'manage_network',
-            'assign_terms' => 'edit_others_posts'  
+            'assign_terms' => 'publish_posts'  
         ),
     );
     register_taxonomy('topic', array('target_ai'), $topic_args);
@@ -116,7 +118,7 @@ function mct_ai_register(){
             'manage_terms' => 'manage_network', //by default only super admin - shouldn't be available
             'edit_terms' => 'manage_network',
             'delete_terms' => 'manage_network',
-            'assign_terms' => 'edit_others_posts'  
+            'assign_terms' => 'publish_posts'  
         ),
     );
     register_taxonomy('ai_class', array('target_ai'), $class_args);
@@ -124,6 +126,29 @@ function mct_ai_register(){
     //Shortcode for a target_ai posts page
     add_shortcode('MyCurator_training_page','target_ai_shortcode');
     
+}
+
+function mct_ai_hascap($allcaps, $cap, $args){
+    //Let Authors view training page which is private
+    //
+    // Bail out if we're not asking about private page:
+    if ( 'read_private_pages' != $cap[0] )
+            return $allcaps;
+
+    // Bail out for users who can already edit others posts:
+    if ( $allcaps['edit_others_posts'] )
+            return $allcaps;
+
+    // Bail out for users who can't publish posts:
+    if ( !isset( $allcaps['publish_posts'] ) or !$allcaps['publish_posts'] )
+            return $allcaps;
+
+    // Load the page data, look for training page shortcode
+    $page = get_page( $args[2] );
+    if (stripos($page->post_content,"MyCurator_training_page") !== false) {
+        $allcaps[$cap[0]] = true; //read_private_pages
+    }
+    return $allcaps;
 }
 
 function mct_ai_insertjs(){
@@ -326,6 +351,10 @@ function target_ai_restrict_manage_posts() {
                 'hide_empty' 	  => true
             ) );
         }
+        wp_dropdown_users( array(
+                'show_option_all' => __('Show All Authors' ),
+                'orderby' 	  => 'display_name'
+            ) );
 }
 
 function target_ai_filter_post_type_request( $query ) {
@@ -344,6 +373,10 @@ function target_ai_filter_post_type_request( $query ) {
         $term = get_term_by( 'id', $var, $tax_slug );
         $var = $term->slug;
       }
+    }
+    //Check for author filter
+    if ( isset($_GET['user'])  ) {
+        $query->query_vars['author'] = $_GET['user'];
     }
   }
   return $query;
@@ -368,7 +401,7 @@ function target_ai_shortcode(){
     //Displays target_ai post types on a page with this shortcode
     //Very little formatting so it will pick up css from current theme
     
-    global $post, $ai_topic_tbl, $wpdb, $wp_query, $paged, $blog_id, $mct_ai_optarray;
+    global $post, $user_ID, $ai_topic_tbl, $wpdb, $wp_query, $paged, $blog_id, $mct_ai_optarray;
     $qtopic = '';
     $qaiclass = '';
     $msg = '';
@@ -410,6 +443,11 @@ function target_ai_shortcode(){
             $q_args['ai_class'] = $qaiclass;
             $msg = "<em>Showing Relevance: ".$qaiclass."</em>";
         }
+    }
+    //Handle author posts
+    if (!current_user_can('edit_others_posts')){
+        get_currentuserinfo();
+        $q_args['author'] = $user_ID;
     }
     //display filter links
     mct_ai_train_nav($msg);

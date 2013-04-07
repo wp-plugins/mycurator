@@ -261,7 +261,7 @@ function mct_ai_callcloud($type,$topic,$postvals){
         'token' => $mct_ai_optarray['ai_cloud_token'],
         'type' => $type,
         'utf8' => $mct_ai_optarray['ai_utf8'], //which 'word' processing to use
-        'ver' => '1.3.0',
+        'ver' => MCT_AI_VERSION,
         'gzip' => 1, //enable compression
         'topic_id' => strval($topic['topic_id'])
         );
@@ -350,6 +350,32 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     //  else post training for all 
     //if relevance also log ai probs
     
+    //Get Topic Options
+    $topic_opt = mct_ai_get_topic_options($topic);
+    // Get an image if we can - 1st match of appropriate size
+    $image = '';
+    $imgtitle = '';
+    if (!empty($mct_ai_optarray['ai_save_thumb'])  || !empty($mct_ai_optarray['ai_post_img'])) {
+        $regexp1 = '{<img [^>]*src\s*=\s*("|\')([^"\']*)("|\')[^>]*>}i'; 
+        $pos = preg_match_all($regexp1,$page,$matchall, PREG_SET_ORDER);
+        if ($pos) {
+            foreach ($matchall as $matches) {
+                $size = @getimagesize($matches[2]);
+                $filename = substr($matches[2], (strrpos($matches[2], '/'))+1); 
+                $wp_filetype = wp_check_filetype( $filename ); //chedck valid file type
+                if ($size && $size[0] >= 25 && $size[1] >= 25 && !empty($wp_filetype['type'])){  //excludes small pngs, icons, pixels
+                    $image = $matches[2];
+                    $pos = preg_match('{<img [^>]*alt\s*=\s*("|\')([^"\']*)("|\')[^>]*>}i',$matches[0],$match);
+                    if ($pos) $imgtitle = $match[2];
+                    break;
+                }
+            }
+        }
+    }
+    if (!empty($topic_opt['opt_image_filter']) && empty($image)) {
+        mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'No Image Found',$post_arr['current_link']);
+        return;  //Skip if no image and image filter set in topic
+    }
     //Good item, so save a copy of page (postsread version will go away eventually) and setredirect value
     $wpdb->insert($ai_sl_pages_tbl, array ('sl_page_content' => $page));
     $page_id = $wpdb->insert_id;
@@ -382,24 +408,17 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
     }
     $post_content = apply_filters('mct_ai_postcontent',$post_content);
-    // Get an image if we can - 1st match of appropriate size
-    $image = '';
-    if (!empty($mct_ai_optarray['ai_save_thumb'])  || !empty($mct_ai_optarray['ai_post_img'])) {
-        $regexp1 = '{<img [^>]*src\s*=\s*("|\')([^"\']*)("|\')[^>]*>}i'; 
-        $pos = preg_match_all($regexp1,$page,$matchall, PREG_SET_ORDER);
-        if ($pos) {
-            foreach ($matchall as $matches) {
-                $size = @getimagesize($matches[2]);
-                if ($size && $size[0] >= 25 && $size[1] >= 25){  //excludes small pngs, icons, pixels
-                    $image = $matches[2];
-                    break;
-                }
-            }
-        }
-    }
+    
     //Set up the values, not set are defaults
     //Check for a user, if not we are in cron process so set  user for the site
-    if (isset($mct_ai_optarray['ai_post_user']) && $mct_ai_optarray['ai_post_user']) {
+    if (!empty($topic_opt['opt_post_user']) && $topic_opt['opt_post_user'] != "Not Set" ) {
+        $useris = get_user_by('login',$topic_opt['opt_post_user']);
+        if ($useris) {
+            $pa = $useris->ID;
+        } else {
+            $pa = 1;
+        }
+    } elseif (!empty($mct_ai_optarray['ai_post_user'])) {
         $useris = get_user_by('login',$mct_ai_optarray['ai_post_user']);
         if ($useris) {
             $pa = $useris->ID;
@@ -488,10 +507,11 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         ));
     }
     //update the image if found as the featured image or inserted image for the post 
-    if ($topic['topic_type'] == 'Video' && !empty($post_arr['yt_thumb']) && !empty($mct_ai_optarray['ai_save_thumb'])){
-        $thumb_id = mct_ai_postthumb($post_arr['yt_thumb'],$post_id);
-    } elseif (!empty($image)){
-        $thumb_id = mct_ai_postthumb($image,$post_id);
+    if ($topic['topic_type'] != 'Video' && !empty($image)){
+        $thumb_id = mct_ai_postthumb($image,$post_id, $imgtitle);
+    }
+    if ($topic['topic_type'] == 'Video' && !empty($image)) {
+        if (stripos($post_content,'<iframe') === false) $thumb_id = mct_ai_postthumb($image,$post_id, $imgtitle); //only if no emgedded video
     }
     if ($thumb_id) {  
         if ($mct_ai_optarray['ai_save_thumb']) update_post_meta( $post_id, '_thumbnail_id', $thumb_id );
@@ -507,7 +527,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
                 if (!$src) wp_get_attachment_image_src($thumb_id,'full');  //try full size
             }
             if ($src) {
-                $imgstr = '<a href="'.$url.'"><img class="size-'.$size.' align'.$align.'" alt="" src="'.$src[0].'" width="'.$src[1].'" height="'.$src[2].'" /></a>';
+                $imgstr = '<a href="'.$url.'"><img class="size-'.$size.' align'.$align.'" alt="'.$imgtitle.'" src="'.$src[0].'" width="'.$src[1].'" height="'.$src[2].'" /></a>';
                 $details['post_content'] = $imgstr.$post_content;
                 $details['ID'] = $post_id;
                 wp_update_post($details);
@@ -549,13 +569,19 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
             $post_arr['article'] = $matches[0]."</iframe><br />"; //embed the iframe
             $post_arr['article'] = str_replace('width="250"', 'width="'.$mct_ai_optarray['ai_video_width'].'"',$post_arr['article']);
             $post_arr['article'] = str_replace('height="250"', 'height="'.$mct_ai_optarray['ai_video_height'].'"',$post_arr['article']);
-            //try to get rid of any autoplay tags
             $pos = preg_match('{src="([^"]*)"}',$post_arr['article'],$matches);
             if ($pos){
+                //get rid of autoplay tags if there
                 $pos = stripos($matches[1],'autoplay'); //match on lowercase
                 if ($pos){
                     $qstr = substr($matches[1],$pos,8);//Not sure what is capitalized, so get original
                     $newstr = remove_query_arg($qstr,$matches[1]);
+                    $post_arr['article'] = preg_replace('{(src=")([^"]*)(")}','$1'.$newstr.'$3',$post_arr['article']);
+                }
+                //add rel=0 tag if youtube video
+                $pos = preg_match('{src="([^"]*)"}',$post_arr['article'],$matches);  //get source again
+                if (stripos($matches[1],'youtube') !== false && stripos($matches[1],'rel=0') === false) {
+                    $newstr = add_query_arg('rel','0',$matches[1]);
                     $post_arr['article'] = preg_replace('{(src=")([^"]*)(")}','$1'.$newstr.'$3',$post_arr['article']);
                 }
             }

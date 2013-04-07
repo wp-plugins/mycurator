@@ -108,14 +108,15 @@ function mct_ai_testurl($url){
     } 
 }
 
-function mct_ai_postthumb($imgurl, $post_id) {
+function mct_ai_postthumb($imgurl, $post_id, $title) {
     // Load an image pointed to by a url into the post thumbnail featured image
     // Adapted from code by Aditya Mooley from auto post thumbnail plugin
     
 
     // Get the file name
     $filename = substr($imgurl, (strrpos($imgurl, '/'))+1);
-
+    //weed out %dd in filename
+    $filename = preg_replace('{%\d\d}','-',$filename);
     if (!(($uploads = wp_upload_dir(current_time('mysql')) ) && false === $uploads['error'])) {
         return null;
     }
@@ -161,7 +162,7 @@ function mct_ai_postthumb($imgurl, $post_id) {
         'post_mime_type' => $type,
         'guid' => $url,
         'post_parent' => null,
-        'post_title' => '',
+        'post_title' => $title,
         'post_content' => '',
     );
 
@@ -170,6 +171,7 @@ function mct_ai_postthumb($imgurl, $post_id) {
         require_once(ABSPATH . '/wp-admin/includes/image.php');
         
         wp_update_attachment_metadata( $thumb_id, wp_generate_attachment_metadata( $thumb_id, $new_file ) );
+        update_post_meta($thumb_id,'_wp_attachment_image_alt',$title); //Add title as alt
         update_attached_file( $thumb_id, $new_file );
         return $thumb_id;
     }
