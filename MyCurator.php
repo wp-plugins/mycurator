@@ -2,9 +2,9 @@
 
 /*
  * Plugin Name: MyCurator
- * Plugin URI: http://www.target-info.com/mycurator/
+ * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -34,6 +34,7 @@ define ('MCT_AI_REDIR','ailink');
 define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
+define ('MCT_AI_VERSION', '1.3.2');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -63,12 +64,19 @@ if (empty($mct_ai_optarray)){
         'ai_save_text' => 'Click here to view full article',
         'ai_embed_video' => "1",
         'ai_lookback_days' => 7,
-        'ai_train_days' => 7
+        'ai_train_days' => 7,
+        'MyC_version' => MCT_AI_VERSION
     );
     update_option('mct_ai_options',$mct_ai_optarray);
 }
 if (!isset($mct_ai_optarray['ai_excerpt'])) { 
     $mct_ai_optarray['ai_excerpt'] = 50;  //set up for existing installs
+    update_option('mct_ai_options',$mct_ai_optarray);
+}
+if (empty($mct_ai_optarray['MyC_version']) || $mct_ai_optarray['MyC_version'] != MCT_AI_VERSION) {
+    //Any code to run for this new version
+    mct_ai_createdb();
+    $mct_ai_optarray['MyC_version'] = MCT_AI_VERSION;
     update_option('mct_ai_options',$mct_ai_optarray);
 }
 //Set up menus
@@ -156,15 +164,15 @@ function mct_ai_createmenu() {
     //Set up our Topics menu
     global $mct_ai_optarray;
     
-    add_menu_page('MyCurator', 'MyCurator','manage_links',__FILE__,'mct_ai_firstpage');
+    add_menu_page('MyCurator', 'MyCurator','publish_posts',__FILE__,'mct_ai_firstpage');
     add_submenu_page(__FILE__,'Topics', 'Topics','manage_links',__FILE__.'_alltopics','mct_ai_mainpage');
     add_submenu_page(__FILE__,'New Topic','New Topic','manage_links',__FILE__.'_newtopic','mct_ai_topicpage');
-    add_submenu_page(__FILE__,'Topic Sources Manager','Topic Source','manage_links',__FILE__.'_topicsource','mct_ai_topicsource');
-    add_submenu_page(__FILE__,'Remove Topic','Remove Topic','manage_links',__FILE__.'_remove','mct_ai_removepage');
+    add_submenu_page(__FILE__,'Topic Sources Manager','Topic Source','manage_options',__FILE__.'_topicsource','mct_ai_topicsource');
+    add_submenu_page(__FILE__,'Remove Topic','Remove Topic','manage_options',__FILE__.'_remove','mct_ai_removepage');
     $optionspage = add_submenu_page(__FILE__,'Options', 'Options','manage_links',__FILE__.'_options','mct_ai_optionpage');
-    $getpage = add_submenu_page(__FILE__,'Get It & Source It', 'Get It & Source It','manage_links',__FILE__.'_getit','mct_ai_getitpage');
-    add_submenu_page(__FILE__,'Source Quick Add', 'Source Quick Add', 'edit_posts','mct_ai_quick_source', 'mct_ai_quick_source'); //Quick Add
-    add_submenu_page(__FILE__,'Create News Feed', 'News or Twitter', 'edit_posts', 'bwc_create_news', 'bwc_create_news');// Google News Feed
+    $getpage = add_submenu_page(__FILE__,'Get It & Source It', 'Get It & Source It','publish_posts',__FILE__.'_getit','mct_ai_getitpage');
+    add_submenu_page(__FILE__,'Source Quick Add', 'Source Quick Add', 'manage_links','mct_ai_quick_source', 'mct_ai_quick_source'); //Quick Add
+    add_submenu_page(__FILE__,'Create News Feed', 'News or Twitter', 'manage_links', 'bwc_create_news', 'bwc_create_news');// Google News Feed
     add_submenu_page(__FILE__,'Logs','Logs','manage_links',__FILE__.'_Logs','mct_ai_logspage');
     add_submenu_page(__FILE__,'Report','Report','manage_links',__FILE__.'_Report','mct_ai_logreport');
     
@@ -184,7 +192,7 @@ function mct_ai_firstpage() {
     //General Info page
     //Set up training page Link
     //Display other important links
-    global $user_id, $mct_ai_optarray;
+    global $user_id, $wpdb, $mct_ai_optarray, $ai_topic_tbl;
     
     $msg = '';
     $token = $mct_ai_optarray['ai_cloud_token'];
@@ -208,7 +216,9 @@ function mct_ai_firstpage() {
     //Get training page link
     $page =  mct_ai_get_trainpage();
     if (!empty($page)) $trainpage = get_page_link($page->ID);
- 
+    //Any topics?
+    $topics = $wpdb->get_var( "SELECT COUNT(*) FROM $ai_topic_tbl" );
+    
     ?>
     <div class='wrap' >
         <div class="postbox-container" style="width:70%;">
@@ -217,17 +227,36 @@ function mct_ai_firstpage() {
             <?php if (!empty($msg)){ ?>
                <div id="message" class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
             <?php } ?>
-            <p>This page has important links and information for using MyCurator.</p>
+            <p>This Home page has important links and information for using MyCurator.</p>
+            <?php if (!current_user_can('manage_options')) { ?>
+            <h3>Important Links</h3>
+            <ul>
+                    <li>- <a href="http://www.target-info.com/training-videos/" >Link to MyCurator Training Videos</a></li>
+                    <li>- MyCurator <a href="http://www.target-info.com/documentation/" >Documentation</a></li>
+                    <?php if (!empty($trainpage)) { ?>
+                    <li>- <a href="<?php echo $trainpage; ?>" />Link to MyCurator Training Page on your site</a></li> <?php } ?>
+            </ul>
+            <h3>Continue Learning about MyCurator</h3>
+            <ol>
+                <li>View our <a href="http://www.target-info.com/training-videos/#curation" >Curation</a> training video to get some ideas.</li>
+                <li>Review all of the <a href="http://www.target-info.com/documentation-2/documentation-options/" >Options</a> available in our Documentation.</li>
+                <li>View our <a href="http://www.target-info.com/training-videos/#training" >Training</a> video and learn how to optimize MyCurator's classification ability.</li>
+                <li>Review our <a href="http://www.target-info.com/training-videos/#multi" >Multi Curation</a> video and learn how to use this powerful tool.</li>
+                <li>Check out the <a href="http://www.target-info.com/category/how-to/">How To</a> section on our Blog for tips and tricks.</li>
+                <li>Our <a href="http://contentcurationplugins.com/">Content Curation Plugins</a> blog has articles and reviews on plugins and other tools to help you in your curation practice.</li>
+            </ol> 
+            </div></div>
+            <?php exit(); } //not an admin ?>
+            <?php if (empty($token)|| empty($trainpage)) { ?>
             <h3>Getting Started</h3>
             <ol>
                 <li>Check the requirements below to see if there are any problems</li>
-                <li>View our <a href="http://www.target-info.com/training-videos/" >Training Video</a> MyCurator Quick Start and begin curating in minutes</li>
-                <li>Set up your training page where MyCurator will post articles for your review (see below)</li>
-                <li>Get your API Key by following the Get API Key in the Important Links to the right</li>
-                <li>Go to the Options Menu Item and enter your MyCurator API Key</li>
+                <li>View our <a href="http://www.target-info.com/training-videos/" >Quick Start</a> training video and begin curating in minutes!</li>
+                <li>Set up your training page where MyCurator will post articles for your review (see below).</li>
+                <li>Get your API Key by following the Get API Key in the Important Links to the right.</li>
+                <li>Go to the Options Menu Item and enter your MyCurator API Key.</li>
                 <li>Enter some sources into Links using our Source It tool, Add a Topic and go!</li>
-                <li>Review the video tutorials and documentation for more in-depth information (see documentation and training videos links to the right)</li>
-                <li>Go to Your Account at Target Info to upgrade your MyCurator API Key and review your purchase history</li>
+                <li>Review the video tutorials and documentation for more in-depth information (see documentation and training videos links to the right).</li>
             </ol>
             <h3>Requirements and Versions</h3>
             <?php mct_ai_vercheck(); ?>
@@ -248,13 +277,61 @@ function mct_ai_firstpage() {
                   <input name="Submit" type="submit" value="Submit" class="button-primary" />
                 </div>
                 </form>
-            <?php } ?>
+            <?php } //training page?>
             <p></p>
             <p>Normally you would keep the training page out of your menus by making it a Private page so that only authorized users (Authors and above) may 
             train the MyCurator system.  When the Training page is created, you will be able to access it from the Training Page link on this page in the Important Links to the right (or set a bookmark in your 
             browser).  If you display the training page on your site, unauthorized users will see the articles but will be unable to train them.</p>
             <h3>MyCurator Plan Information</h3>
-            <?php if ($token) mct_ai_getplan(); echo mct_ai_showplan(); ?>
+            <?php if ($token) { 
+                mct_ai_getplan(); 
+                echo mct_ai_showplan(); 
+            } ?>
+            <?php } elseif (!$topics ) { //end No Token/training page, start no topic ?>
+            
+            <h3>Getting Started</h3>
+            <ol>
+                <li>View our <a href="http://www.target-info.com/training-videos/" >Quick Start</a> training video and begin curating in minutes.</li>
+                <li>Plan your installation with our <a href="http://www.target-info.com/training-videos/#planning" >Planning</a> training video.</li>
+                <li>Enter some sources using our Source It tool.</li>
+                <li>Add a Topic and connect it with your Sources.</li>
+                <li>When you have Sources and a Topic, MyCurator will start to gather articles to your Training Page - this may take up to a day to get started.</li>
+                <li>Go to your Training Page or the Training Posts menu in the Dashboard to view your articles and begin curating to your live blog!</li>
+                <li>Review the video tutorials and documentation for more in-depth information (see documentation and training videos links to the right).</li>
+            </ol>
+
+            <h3>MyCurator Plan Information</h3>
+            <?php mct_ai_getplan(); echo mct_ai_showplan(); ?>
+            <?php } else { //end no topic, start active ?>
+            
+            <h2>MyCurator Plan Information</h2>
+            <?php mct_ai_getplan(); 
+            $plan_display = mct_ai_showplan(true,false); 
+            echo $plan_display;
+            $trial = stripos($plan_display,'trial');
+            if (stripos($plan_display,'ind') !== false) { ?>
+                <h3>Expand your curation with more Topics and use MyCurator on your other web sites or blogs!  Just
+                    <a href="http://www.target-info.com/myaccount/?token=<?php echo $token; ?>" >Upgrade to a Pro or Business Plan</a> for a low monthly fee and build your business and SEO.</h3>
+            <?php }    //end Individual
+            elseif ($trial) { ?>
+            <h3>Make sure you <a href="http://www.target-info.com/myaccount/?token=<?php echo $token; ?>" >Purchase a Pro or Business Plan </a>
+                before your Trial Period Ends!</h3>
+            <?php    
+            }  elseif (stripos($plan_display,'pro') !== false) { //end trial, must be pro      ?>
+            <h3>You can add more sites and get Unlimited Topics with a <a href="http://www.target-info.com/myaccount/?token=<?php echo $token; ?>" >Business Plan Upgrade</a></h3>
+            <?php } //end pro ?>
+            <br><br><br>
+            <h3>Continue Learning about MyCurator</h3>
+            <ol>
+                <li>View our <a href="http://www.target-info.com/training-videos/#curation" >Curation</a> training video to get some ideas.</li>
+                <li>Review all of the <a href="http://www.target-info.com/documentation-2/documentation-options/" >Options</a> available in our Documentation.</li>
+                <li>View our <a href="http://www.target-info.com/training-videos/#training" >Training</a> video and learn how to optimize MyCurator's classification ability.</li>
+                <li>Review our <a href="http://www.target-info.com/training-videos/#multi" >Multi Curation</a> video and learn how to use this powerful tool.</li>
+                <li>Tweak your topics and keywords using the <a href="http://www.target-info.com/documentation-2/documentation-logs/" >Logs</a> page.</li>
+                <li>Check out the <a href="http://www.target-info.com/category/how-to/">How To</a> section on our Blog for tips and tricks.</li>
+                <li>Our <a href="http://contentcurationplugins.com/">Content Curation Plugins</a> blog has articles and reviews on plugins and other tools to help you in your curation practice.</li>
+            </ol>   
+            <?php } //end active messages ?>
         </div>
         <div class="postbox-container" style="width:20%; margin-top: 35px; margin-left: 15px;">
                 <div class="metabox-holder">	
@@ -270,7 +347,7 @@ function mct_ai_firstpage() {
                                                         <li>- MyCurator <a href="http://wordpress.org/support/plugin/mycurator" >support forum</a></li>
                                                         <?php if (empty($mct_ai_optarray['ai_cloud_token'])) { ?>
                                                         <li>- MyCurator API Key: <a href="http://www.target-info.com/pricing/" />Get API Key</a></li><?php } ?>
-                                                        <li>- <a href="http://www.target-info.com/myaccount/" >My Account</a> at Target Info</li>
+                                                        <li>- <a href="http://www.target-info.com/myaccount/?token=<?php echo $token; ?>" >My Account</a> at Target Info</li>
                                                         <?php if (!empty($trainpage)) { ?>
                                                         <li>- <a href="<?php echo $trainpage; ?>" />Link to MyCurator Training Page on your site</a></li> <?php } ?>
                                                 </ul>
@@ -279,18 +356,18 @@ function mct_ai_firstpage() {
 
                                 <div id="breadcrumsnews" class="postbox">
                                         <div class="handlediv" title="Click to toggle"><br /></div>
-                                        <h3 class="hndle"><span><?php echo "Latest news from Target Info";?></span></h3>
+                                        <h3 class="hndle"><span><?php echo "Latest news from Our Blog";?></span></h3>
                                         <div class="inside">
-                                                <p style="font-weight: bold;">www.Target-info.com</p>
+                                                <?php // <p style="font-weight: bold;">www.Target-info.com</p> ?>
                                                 <?php mct_ai_showfeed( 'http://www.target-info.com/feed/', 5 );  ?>
-                                                <p style="font-weight: bold;">Twitter @tgtinfo</p>
+                                                <?php //<p style="font-weight: bold;">Twitter @MyCurator</p> ?>
                                                 <?php 
                                                 $twit_append = '<li>&nbsp;</li>';
-                                                $twit_append .= '<li><a href="http://twitter.com/tgtinfo/" >';
-                                                $twit_append .= 'Follow @tgtinfo on Twitter.</a></li>';
+                                                $twit_append .= '<li><a href="http://twitter.com/mycurator/" >';
+                                                $twit_append .= 'Follow @MyCurator on Twitter.</a></li>';
                                                 $twit_append .= '<li><a href="http://www.target-info.com/feed/" >';
                                                 $twit_append .= 'Subscribe to RSS news feed.</a></li>';
-                                                mct_ai_showfeed( 'http://api.twitter.com/1/statuses/user_timeline.rss?screen_name=tgtinfo', 5);
+                                                //mct_ai_showfeed( 'http://api.twitter.com/1/statuses/user_timeline.rss?screen_name=mycurator', 5);
                                                 echo "<ul>".$twit_append."</ul>";
                                                 ?>
                                         </div>
@@ -372,7 +449,7 @@ function mct_ai_mainpage() {
     $editpage = substr($ruri,0,$pos) .'_newtopic&edit=';
     $sourcepage = substr($ruri,0,$pos) . '_topicsource&edit=';
     //Get Values from Db
-    $sql = "SELECT `topic_name`, `topic_status`, `topic_type`, `topic_cat`, `topic_tag`, `topic_sources`
+    $sql = "SELECT `topic_name`, `topic_status`, `topic_type`, `topic_cat`, `topic_tag`, `topic_sources`, `topic_options`
             FROM $ai_topic_tbl";
     $edit_vals = $wpdb->get_results($sql, ARRAY_A);
     //render the page
@@ -394,20 +471,19 @@ function mct_ai_mainpage() {
                 <th>Type</th>
                 <th>Status</th>
                 <th>Assigned Category</th>
-                <th>Assigned Tag</th>
+                <th>Assigned Author</th>
                 <th>Sources</th>
                 </tr>
             </thead>
             <tbody>
             <?php foreach ($edit_vals as $row){
+                $row = mct_ai_get_topic_options($row);
                 echo('<tr>');
                 echo('<td><a href="'.$editpage.trim($row['topic_name']).'" >'.$row['topic_name'].'</a></td>');
                 echo('<td>'.$row['topic_type'].'</td>');
                 echo('<td>'.mct_ai_status_display($row['topic_status'],'display').'</td>');
                 echo('<td>'.get_cat_name($row['topic_cat']).'</td>');
-                $tagterm = get_term($row['topic_tag'],'post_tag');
-                if (!empty($tagterm)) echo('<td>'.$tagterm->name.'</td>');
-                else echo '<td> </td>';
+                echo('<td>'.$row['opt_post_user'].'</td>');
                 if (empty($row['topic_sources'])){
                     $source_fld = "Add Sources";
                 } else {
@@ -437,6 +513,14 @@ function mct_ai_topicpage() {
     $edit_vals = array();
     $do_report = false;
     $no_more = false;
+    
+    //Set up user login dropdown
+    $authusers = get_users(array('role' => 'author'));
+    $editusers = get_users(array('role' => 'editor'));
+    $moreusers = get_users(array('role' => 'administrator'));
+    $notset = new stdClass;
+    $notset->user_login = "Not Set";
+    $allusers = array_merge(array($notset),$authusers,$editusers,$moreusers);
 
     //Set up cat/tag dropdown
     $cats = array (
@@ -486,6 +570,8 @@ function mct_ai_topicpage() {
             'topic_tag' => strval(absint($_POST['topic_tag'])),
             'topic_tag_search2' => $_POST['topic_tag_search2'],
             'topic_sources' => $tsource,
+            'opt_post_user' => $_POST['opt_post_user'],
+            'opt_image_filter' => strval(absint($_POST['opt_image_filter'])),
             'topic_min_length' => strval(absint($_POST['topic_min_length']))
         );        
         // Get category create name
@@ -511,7 +597,13 @@ function mct_ai_topicpage() {
                 $topicslug = $_POST['topic_slug'];
             }
             $edit_vals['topic_slug'] = $topicslug;
-            
+            //Save options into db field
+            $edit_vals['topic_options'] = maybe_serialize(array(
+                'opt_post_user' => $edit_vals['opt_post_user'],
+                'opt_image_filter' => $edit_vals['opt_image_filter']));
+            //unset opt fields not in db
+            unset($edit_vals['opt_post_user']);
+            unset($edit_vals['opt_image_filter']);            
             if ($_GET['updated'] == 'true'){
                 //Do an update
                 $where = array('topic_name' => $topic_name);
@@ -546,7 +638,7 @@ function mct_ai_topicpage() {
         $update_type = 'true'; //Means we have to do an update
         //Load values from db
         $sql = "SELECT `topic_name`, `topic_slug`, `topic_status`, `topic_type`, `topic_search_1`, `topic_search_2`, 
-                `topic_exclude`, `topic_skip_domains`, `topic_min_length`, `topic_cat`, `topic_tag`, `topic_tag_search2`, `topic_sources`
+                `topic_exclude`, `topic_skip_domains`, `topic_min_length`, `topic_cat`, `topic_tag`, `topic_tag_search2`, `topic_sources`, `topic_options`
                 FROM $ai_topic_tbl
                 WHERE topic_name = '$tname'";
         $edit_vals = $wpdb->get_row($sql, ARRAY_A);
@@ -571,6 +663,9 @@ function mct_ai_topicpage() {
         }
         //Set up sources checkboxes
         $sources = array_map('trim',explode(',',$edit_vals['topic_sources']));
+        //Set up options into edit vals
+        $edit_vals = mct_ai_get_topic_options($edit_vals);
+        
     } else {
         //New topic, if error, don't reset values
         $curstat = mct_ai_status_display('Training','display');
@@ -588,6 +683,8 @@ function mct_ai_topicpage() {
             $edit_vals['topic_sources'] = '';
             $edit_vals['topic_min_length'] = '';
             $edit_vals['topic_createcat'] = '';
+            $edit_vals['opt_post_user'] = 'Not Set';
+            $edit_vals['opt_image_filter'] = '';
         } else {
             //error, so reset selected cat, tag, sources
             $cats['selected'] = $edit_vals['topic_cat'];
@@ -633,7 +730,8 @@ function mct_ai_topicpage() {
 ?>
        <p>Use spaces to separate keywords.  You can use phrases in Keywords by enclosing words in single or double quotes 
            (start and end quotes must be the same).  Use the root of a keyword and it will match all endings, for example manage 
-           will match manages, manager and management. See <a href="http://www.target-info.com/documentation-2/documentation-topics/" >Topics Documentation</a> for more details</p>
+           will match manages, manager and management. See <a href="http://www.target-info.com/training-videos/#topics" >Topics</a> video and 
+           <a href="http://www.target-info.com/documentation-2/documentation-topics/" >Topics Documentation</a> for more details</p>
        <p>Press Save Options button at bottom to save your entries/changes</p>
        <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] . '&updated='.$update_type); ?>"> 
         <table class="form-table" >
@@ -662,10 +760,15 @@ function mct_ai_topicpage() {
                 <th scope="row">Topic Excluded</th>
                 <td><input name="topic_exclude" type ="input" id="topic_exclude" size="100" value="<?php echo esc_attr($edit_vals['topic_exclude']); ?>"  />
                 <span>&nbsp;<em>NONE of these terms may be in the article</em></span></td>    
-            </tr><tr>
+            </tr>
+            <tr>
                 <th scope="row">Minimum Article Length (in words)</th>
                 <td><input name="topic_min_length" type="input" id="topic_min_length" size="5" maxlength="5" value="<?php echo $edit_vals['topic_min_length']; ?>"  /></td>    
             </tr>
+            <tr>
+                <th scope="row">Exclude if No Image</th>
+                <td><input name="opt_image_filter" type="checkbox" id="opt_image_filter" value="1" <?php checked('1', $edit_vals['opt_image_filter']); ?> /></td>    
+            </tr> 
             <tr>
                 <th scope="row">Skip These Domains</th>
                 <td><textarea id='topic_skip_domains' rows='5' cols='100' name='topic_skip_domains'><?php echo $edit_vals['topic_skip_domains'] ?></textarea></td>    
@@ -686,6 +789,14 @@ function mct_ai_topicpage() {
                 ?>
                 </select></td>
             </tr>
+            <tr>
+                <th scope="row">User for MyCurator Posts</th>
+                <td><select name="opt_post_user" >
+                <?php foreach ($allusers as $users){ ?>
+                    <option value="<?php echo $users->user_login; ?>" <?php selected($edit_vals['opt_post_user'],$users->user_login); ?> ><?php echo $users->user_login; ?></option>
+                <?php } //end foreach ?>
+                    </select><span> (If Not Set will use user in Admin tab of Options)</span></td>       
+            </tr>     
             <tr>
                 <th scope="row">Assign to Category</th>
                 <td><?php wp_dropdown_categories($cats); ?><td>    
@@ -746,9 +857,11 @@ function mct_ai_topicpage() {
         <?php wp_nonce_field('mct_ai_topicpg','topicpg'); ?>
             <!-- Topic Slug Hidden Fields -->
             <input name="topic_slug" type="hidden" id="topic_slug" value="<?php echo $edit_vals['topic_slug']; ?>" />
+            <?php if (current_user_can('manage_options')) { ?>
            <div class="submit">
-          <input name="Submit" type="submit" value="Save Options" class="button-primary" />
+          <input name="Submit" type="submit" value="Save Topic" class="button-primary" />
         </div>
+            <?php } //end manage options check ?>
        </form> 
     </div>
 <?php
@@ -770,14 +883,15 @@ function mct_ai_optionpage() {
     //since they have to come here at least once to turn on the system
     global $mct_ai_optarray;
     
-    mct_ai_createdb();
     $msg = '';
     //Set up user login dropdown
    $allusers = get_users(array('role' => 'editor'));
    $moreusers = get_users(array('role' => 'administrator'));
-   $allusers = array_merge($allusers,$moreusers);
+   $allusers = array_merge($moreusers,$allusers);
    
     if (isset($_POST['Submit']) ) {
+        //create db just in case
+         mct_ai_createdb();
         //load options into array and update db
         if (!current_user_can('manage_options')) wp_die("Insufficient Privelege");
         check_admin_referer('mct_ai_optionspg','optionset');
@@ -815,7 +929,8 @@ function mct_ai_optionpage() {
             'ai_embed_video' => absint($_POST['ai_embed_video']),
             'ai_video_width' => absint($_POST['ai_video_width']),
             'ai_video_height' => absint($_POST['ai_video_height']),
-            'ai_plan' => $mct_ai_optarray['ai_plan']
+            'ai_plan' => $mct_ai_optarray['ai_plan'],
+            'MyC_version' => $mct_ai_optarray['MyC_version']
         );
         //Validation
         if (empty($opt_update['ai_log_days'])) $opt_update['ai_log_days'] = 7;
@@ -1065,9 +1180,11 @@ function mct_ai_optionpage() {
          </div>
         </div>
             <?php wp_nonce_field('mct_ai_optionspg','optionset'); ?>
+            <?php if (current_user_can('manage_options')) { ?>
         <div class="submit">
           <input name="Submit" type="submit" value="Save Options" class="button-primary" />
         </div>
+        <?php } //end manage options check ?>
         <em>Saves Options for All Tabs at once</em>
         </form>
     </div>
@@ -1123,7 +1240,7 @@ function mct_ai_topicsource() {
     <?php screen_icon('plugins'); ?>
     <h2>MyCurator Topic Sources</h2> 
     <p>MyCurator relates feeds to the topics you set up based on Link Categories. Choose a Topic below and select one or more sources.  
-    See <a href="http://www.target-info.com/documentation-2/documentation-sources/" >Sources Documentation</a> for more details</p>
+    See our <a href="http://www.target-info.com/training-videos/#sources" >Sources</a> video and <a href="http://www.target-info.com/documentation-2/documentation-sources/" >Sources Documentation</a> for more details</p>
     <?php if (!empty($msg)){ ?>
        <div id="message" class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php } ?>
@@ -1249,11 +1366,13 @@ function mct_ai_getitpage() {
      <div id="tabs">
         <ul>
         <li><a href="#tabs-1">Get It</a></li>
+        <?php if (current_user_can('edit_others_posts')) { ?>
         <li><a href="#tabs-2">Source It</a></li>
+         <?php } //end current user can publish ?>
         </ul>
         <div id="tabs-1">
             <h2>Get It</h2>
-                <p><?php _e('Get It is a bookmarklet: a little app that runs in your browser and lets you grab bits of the web. See the new Get It <a href="http://www.target-info.com/training-videos/" />Training Video</a>');?></p>
+                <p><?php _e('Get It is a bookmarklet: a little app that runs in your browser and lets you grab bits of the web. See the <a href="http://www.target-info.com/training-videos/#getit" />Get It Training Video</a>');?></p>
                 <p><?php _e('Use Get It to save articles to your training page as you are reading them in your browser or iPad!
                     Now you can add all of the content you find while browsing the web, twitter and your social networks.  The content you 
                     discover on your own can be posted right into the training page along with all of the content that MyCurator has discovered.  No 
@@ -1286,10 +1405,11 @@ function mct_ai_getitpage() {
                     choose Copy All.  Touch the menu and choose Add Bookmark.  Edit the title to Get It then touch the Location box 
                     until the Edit Text menu appears.  Choose Paste then Done to save the bookmark') ?></p>
             </div>
+         <?php if (current_user_can('edit_others_posts')) { ?>
             <div id="tabs-2">
             <h2>Source It</h2>
                 <p><?php _e('Source It is a bookmarklet: a little app that runs in your browser and lets you grab feeds directly from a site! 
-                    See the <a href="http://www.target-info.com/training-videos/" />Training Video</a>');?></p>
+                    See the <a href="http://www.target-info.com/training-videos/#sourceit" />Source It Training Video</a>');?></p>
                 <p><?php _e('Use Source It to grab a feed and load it into your Links area when you are visiting a site that you want MyCurator
                     to read each day.  Source It can also easily grab a Google Alerts feed.');?></p>
                 <p><?php _e('After installing the Source It bookmarklet, whenever you see a site whose feed you want to save to your Sources,
@@ -1322,6 +1442,7 @@ function mct_ai_getitpage() {
                     choose Copy All.  Touch the menu and choose Add Bookmark.  Edit the title to Source It then touch the Location box 
                     until the Edit Text menu appears.  Choose Paste then Done to save the bookmark') ?></p>
             </div>
+         <?php } //end current user can publish ?>
         </div>
     </div>
     </div>
@@ -1337,7 +1458,7 @@ e=w.getSelection,
 k=d.getSelection,
 x=d.selection,
 s=(e?e():(k)?k():(x?x.createRange().text:0)),
-f='" . plugins_url('mycurator/MyCurator_getit.php') . "',
+f='" . plugins_url('MyCurator_getit.php',__FILE__) . "',
 l=d.location,
 e=encodeURIComponent,
 u=f+'?u='+e(l.host+l.pathname+l.search)+'&t='+e(d.title)+'&s='+e(s)+'&v=4';
@@ -1582,6 +1703,7 @@ function mct_ai_createdb(){
             topic_cat int(11),
             topic_tag int(11),
             topic_tag_search2 char(1),
+            topic_options text,
             PRIMARY KEY  (topic_id),
             KEY topic_name (topic_name)
     ) $charset_collate;";
@@ -1700,13 +1822,13 @@ function mct_ai_showplan($display=true, $upgrade=true){
     if (empty($mct_ai_optarray['ai_cloud_token'])) return ($display) ? '<p><strong>You need an API Key before you can add Topics</strong></p>' : false;
     //Get the plan
     if (empty($mct_ai_optarray['ai_plan'])){
-        return ($display) ? "<p><strong>No Plan Data Available, could not connect with cloud services.  Try again after 5 minutes. 
+        return ($display) ? "<p><strong>Error - No Plan Data Available, could not connect with cloud services.  Try again after 5 minutes. 
             If still having problems contact MyCurator support at support@target-info.com.</strong></p>" : false;
     }
     $plan = unserialize($mct_ai_optarray['ai_plan']);
     if ($plan['max'] == -1) {
         //error, invalid token or expired
-        return ($display) ? "<p><strong>".$plan['name']." Try to correct the error and then try again after 5 minutes. 
+        return ($display) ? "<p><strong>Error - ".$plan['name']." Try to correct the error and then try again after 5 minutes. 
             If still having problems contact MyCurator support at support@target-info.com.</strong></p>" : false;
     }
     if ($plan['max'] == 0){
@@ -1718,15 +1840,20 @@ function mct_ai_showplan($display=true, $upgrade=true){
     if (!$display) {
         return ($cur_cnt >= $plan['max']) ? false : true;
     }
-    
+    //Get Token
+    $token = $mct_ai_optarray['ai_cloud_token'];
     //Set up the display
     ob_start();
     ?>
     <h4><?php echo $plan['name']; ?> with <?php echo $plan['max']; ?> Topics maximum and <?php echo $cur_cnt; ?> currently used</h4>
-    <?php if ($upgrade) { ?>
-    <p>If you would like to set up more topics than your current plan allows, or install MyCurator on more sites, you should <a href="http://www.target-info.com/myaccount/" >Upgrade to a Pro or Business Plan</a></p>
-                &nbsp(You will need your Target Info account login credentials, or choose Lost your Password?)
-    <?php }
+    <?php 
+    if ($upgrade && current_user_can('manage_options')) { 
+        if (stripos($plan['name'],'ind') !== false) {
+            echo '<p>If you would like to set up more topics than your current plan allows, or install MyCurator on more sites, <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Upgrade to a Pro or Business Plan</a></p>';
+        } else { //must be pro, business already returned
+            echo '<p>If you would like to set up more topics than your current plan allows, or install MyCurator on more sites, <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Go to My Account</a> on our site</p>';
+        }
+    }
     return ob_get_clean();
 }
 
@@ -1742,6 +1869,14 @@ function mct_ai_clearlogs(){
     $sql = "DELETE FROM $ai_logs_tbl";
     $pr_row = $wpdb->query($sql);
 
+}
+
+function mct_ai_get_topic_options($edit_vals){
+    //Break out options from a topic option field
+    $allopts = maybe_unserialize($edit_vals['topic_options']);
+    $edit_vals['opt_post_user'] = $allopts['opt_post_user'];
+    $edit_vals['opt_image_filter'] = $allopts['opt_image_filter'];
+    return $edit_vals;
 }
 
 //These are the stopwords that will be ignored in classifying a document

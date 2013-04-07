@@ -4,7 +4,7 @@ Donate link:
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, content management, content discovery, marketing, SEO
 Requires at least: 3.3
 Tested up to: 3.5
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,7 @@ and comments, quickly creating newly curated content for your site.
 
 Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 
+* Pro-actively finds the content you want, no need to search every time, making it easy to regularly curate new posts.
 * Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk curation tools.
 * Customize to your specific niche by choosing what sources to read and what to look for in each article
 * For even more content accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
@@ -34,7 +35,7 @@ Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 * Selective Auto-Post capability uses AI process to deliver highly targeted, quality articles to your community.
 
 MyCurator is powerful corporate level software brought to you as a plugin.  It uses a cloud process to perform 
-intensive AI processing and article classification.  This allows MyCurator to maintain a low processing overhead on your blog.
+intensive AI processing and article classification.  This allows MyCurator to maintain a low processing overhead on your site.
 
 MyCurator allows you to curate 2 Topics (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
 cloud services.  For those who need to curate a lot of different topics or for multiple sites, low priced monthly plans are 
@@ -84,6 +85,15 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.3.2 =
+* Add the ability to enter an author for each Topic, with role of Author or higher.
+* Add the ability to filter by author on the Training Posts admin page.
+* If a user has an Author role, they can only train and post training articles where they are the author.
+* MyCurator menu items and ability to save changes now depend on role, Editor can manage Sources, Author can only use Get It.
+* You can now exclude any article if it has no image using a new checkbox on the Topic page.
+* If the featured or embedded image found by MyCurator has an alt text, that is used for the title in the media library and the alt text for the image.
+* For video Topic, suppress showing related videos at end if a youtube video is embedded.
 
 = 1.3.1 =
 * Add support for twitter account following (such as @tgtinfo) in Twitter Search
