@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.3.2
+ * Version: 1.3.3
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -34,7 +34,7 @@ define ('MCT_AI_REDIR','ailink');
 define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
-define ('MCT_AI_VERSION', '1.3.2');
+define ('MCT_AI_VERSION', '1.3.3');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -164,20 +164,24 @@ function mct_ai_createmenu() {
     //Set up our Topics menu
     global $mct_ai_optarray;
     
-    add_menu_page('MyCurator', 'MyCurator','publish_posts',__FILE__,'mct_ai_firstpage');
-    add_submenu_page(__FILE__,'Topics', 'Topics','manage_links',__FILE__.'_alltopics','mct_ai_mainpage');
-    add_submenu_page(__FILE__,'New Topic','New Topic','manage_links',__FILE__.'_newtopic','mct_ai_topicpage');
-    add_submenu_page(__FILE__,'Topic Sources Manager','Topic Source','manage_options',__FILE__.'_topicsource','mct_ai_topicsource');
-    add_submenu_page(__FILE__,'Remove Topic','Remove Topic','manage_options',__FILE__.'_remove','mct_ai_removepage');
-    $optionspage = add_submenu_page(__FILE__,'Options', 'Options','manage_links',__FILE__.'_options','mct_ai_optionpage');
-    $getpage = add_submenu_page(__FILE__,'Get It & Source It', 'Get It & Source It','publish_posts',__FILE__.'_getit','mct_ai_getitpage');
-    add_submenu_page(__FILE__,'Source Quick Add', 'Source Quick Add', 'manage_links','mct_ai_quick_source', 'mct_ai_quick_source'); //Quick Add
-    add_submenu_page(__FILE__,'Create News Feed', 'News or Twitter', 'manage_links', 'bwc_create_news', 'bwc_create_news');// Google News Feed
-    add_submenu_page(__FILE__,'Logs','Logs','manage_links',__FILE__.'_Logs','mct_ai_logspage');
-    add_submenu_page(__FILE__,'Report','Report','manage_links',__FILE__.'_Report','mct_ai_logreport');
-    
-    add_action('load-'.$getpage, 'mct_ai_queueit');
-    add_action('load-'.$optionspage, 'mct_ai_queueit');
+    if (mct_ai_menudisp()){
+        add_menu_page('MyCurator', 'MyCurator','publish_posts',__FILE__,'mct_ai_firstpage');
+        add_submenu_page(__FILE__,'Topics', 'Topics','manage_links',__FILE__.'_alltopics','mct_ai_mainpage');
+        add_submenu_page(__FILE__,'New Topic','New Topic','manage_links',__FILE__.'_newtopic','mct_ai_topicpage');
+        add_submenu_page(__FILE__,'Topic Sources Manager','Topic Source','manage_options',__FILE__.'_topicsource','mct_ai_topicsource');
+        add_submenu_page(__FILE__,'Remove Topic','Remove Topic','manage_options',__FILE__.'_remove','mct_ai_removepage');
+        $optionspage = add_submenu_page(__FILE__,'Options', 'Options','manage_links',__FILE__.'_options','mct_ai_optionpage');
+        $getpage = add_submenu_page(__FILE__,'Get It & Source It', 'Get It & Source It','publish_posts',__FILE__.'_getit','mct_ai_getitpage');
+        add_submenu_page(__FILE__,'Source Quick Add', 'Source Quick Add', 'manage_links','mct_ai_quick_source', 'mct_ai_quick_source'); //Quick Add
+        add_submenu_page(__FILE__,'Create News Feed', 'News or Twitter', 'manage_links', 'bwc_create_news', 'bwc_create_news');// Google News Feed
+        add_submenu_page(__FILE__,'Logs','Logs','manage_links',__FILE__.'_Logs','mct_ai_logspage');
+        add_submenu_page(__FILE__,'Report','Report','manage_links',__FILE__.'_Report','mct_ai_logreport');
+        add_action('load-'.$getpage, 'mct_ai_queueit');
+        add_action('load-'.$optionspage, 'mct_ai_queueit');
+    } else {
+        $getpage = add_menu_page('Get It', 'Get It','publish_posts',__FILE__,'mct_ai_getitpage');
+        add_action('load-'.$getpage, 'mct_ai_queueit');
+    }
 }
 
 function mct_ai_queueit(){
@@ -929,6 +933,9 @@ function mct_ai_optionpage() {
             'ai_embed_video' => absint($_POST['ai_embed_video']),
             'ai_video_width' => absint($_POST['ai_video_width']),
             'ai_video_height' => absint($_POST['ai_video_height']),
+            'ai_line_brk' => absint($_POST['ai_line_brk']),
+            'ai_hide_menu' => absint($_POST['ai_hide_menu']),
+            'ai_image_title' => absint($_POST['ai_image_title']),
             'ai_plan' => $mct_ai_optarray['ai_plan'],
             'MyC_version' => $mct_ai_optarray['MyC_version']
         );
@@ -1010,6 +1017,31 @@ function mct_ai_optionpage() {
                 <tr>
                     <th scope="row">Save first article picture as featured post thumbnail?</th>
                     <td><input name="ai_save_thumb" type="checkbox" id="ai_save_thumb" value="1" <?php checked('1', $cur_options['ai_save_thumb']); ?>  /></td>    
+                </tr>
+                <tr>
+                    <th scope="row">Save First Image into Curated Post</th>
+                    <td><input name="ai_post_img" type="checkbox" id="ai_post_img" value="1" <?php checked('1', $cur_options['ai_post_img']); ?>  />
+                    <span>&nbsp;<em>If checked, you should turn off saving as Featured Image above or you may get duplicate images</em></span></td>    
+                </tr>
+                <tr>
+                    <th scope="row">&raquo; Image Alignment</th>
+                    <td><input name="ai_img_align" type="radio" value="left" <?php checked('left', $cur_options['ai_img_align']); ?>  /> Left
+                        <input name="ai_img_align" type="radio" value="right" <?php checked('right', $cur_options['ai_img_align']); ?>  /> Right
+                        <input name="ai_img_align" type="radio" value="center" <?php checked('center', $cur_options['ai_img_align']); ?>  /> Center
+                        <input name="ai_img_align" type="radio" value="none" <?php checked('none', $cur_options['ai_img_align']); ?>  /> None
+                    </td>    
+                </tr> 
+                <tr>
+                    <th scope="row">&raquo; Image Size</th>
+                    <td><input name="ai_img_size" type="radio" value="thumbnail" <?php checked('thumbnail', $cur_options['ai_img_size']); ?>  /> Thumbnail
+                        <input name="ai_img_size" type="radio" value="medium" <?php checked('medium', $cur_options['ai_img_size']); ?>  /> Medium
+                        <input name="ai_img_size" type="radio" value="large" <?php checked('large', $cur_options['ai_img_size']); ?>  /> Large
+                        <input name="ai_img_size" type="radio" value="full" <?php checked('full', $cur_options['ai_img_size']); ?>  /> Full Size
+                    </td>    
+                </tr> 
+                <tr>
+                    <th scope="row">Use Post Title for Image Title & Alt Tag</th>
+                    <td><input name="ai_image_title" type="checkbox" id="ai_image_title" value="1" <?php checked('1', $cur_options['ai_image_title']); ?>  /></td>    
                 </tr>
                 <tr>
                     <th scope="row">Run MyCurator Every </th>
@@ -1107,32 +1139,17 @@ function mct_ai_optionpage() {
                  <tr>
                     <th scope="row">Excerpt length in words:</th>
                     <td><input name="ai_excerpt" type="text" id="ai_excerpt" size ="5" value="<?php echo $cur_options['ai_excerpt']; ?>"  /></td>    
-                </tr>                 
+                </tr> 
+                <tr>
+                    <th scope="row">Save Line Breaks in Excerpt?</th>
+                    <td><input name="ai_line_brk" type="checkbox" id="ai_line_brk" value="1" <?php checked('1', $cur_options['ai_line_brk']); ?>  />
+                    <span>&nbsp;<em>Warning: Do not use this option if you are displaying the full text readable article on the single post page - see <a href="http://www.target-info.com/documentation-2/documentation-options/">Options</a> documentation</em></span></td>    
+                </tr>
                 <tr>
                     <th scope="row"># of Articles shown on Training Page</th>
                     <td><input name="ai_num_posts" type="text" id="ai_num_posts" size ="5" value="<?php echo $cur_options['ai_num_posts']; ?>"  /></td>    
                 </tr>  
-                <tr>
-                    <th scope="row">Save First Image into Curated Post</th>
-                    <td><input name="ai_post_img" type="checkbox" id="ai_post_img" value="1" <?php checked('1', $cur_options['ai_post_img']); ?>  />
-                    <span>&nbsp;<em>If checked, you should turn off using Featured Images on the Basic tab or you may get two images</em></span></td>    
-                </tr>
-                <tr>
-                    <th scope="row">&raquo; Image Alignment</th>
-                    <td><input name="ai_img_align" type="radio" value="left" <?php checked('left', $cur_options['ai_img_align']); ?>  /> Left
-                        <input name="ai_img_align" type="radio" value="right" <?php checked('right', $cur_options['ai_img_align']); ?>  /> Right
-                        <input name="ai_img_align" type="radio" value="center" <?php checked('center', $cur_options['ai_img_align']); ?>  /> Center
-                        <input name="ai_img_align" type="radio" value="none" <?php checked('none', $cur_options['ai_img_align']); ?>  /> None
-                    </td>    
-                </tr> 
-                <tr>
-                    <th scope="row">&raquo; Image Size</th>
-                    <td><input name="ai_img_size" type="radio" value="thumbnail" <?php checked('thumbnail', $cur_options['ai_img_size']); ?>  /> Thumbnail
-                        <input name="ai_img_size" type="radio" value="medium" <?php checked('medium', $cur_options['ai_img_size']); ?>  /> Medium
-                        <input name="ai_img_size" type="radio" value="large" <?php checked('large', $cur_options['ai_img_size']); ?>  /> Large
-                        <input name="ai_img_size" type="radio" value="full" <?php checked('full', $cur_options['ai_img_size']); ?>  /> Full Size
-                    </td>    
-                </tr> 
+                
                 </table>
             </div>
             <div id="tabs-4">
@@ -1175,6 +1192,11 @@ function mct_ai_optionpage() {
                     <td><input name="ai_lookback_days" type="text" id="ai_lookback_days" size ="5" value="<?php echo $cur_options['ai_lookback_days']; ?>"  />
                     <em>Between 1 and 90 days</em></td>    
                 </tr>     
+                <tr>
+                    <th scope="row">Hide MyCurator menu for non-Admins?</th>
+                    <td><input name="ai_hide_menu" type="checkbox" id="ai_hide_menu" value="1" <?php checked('1', $cur_options['ai_hide_menu']); ?>  />
+                    <em>Only for Paid Plans</em></td>    
+                </tr>   
                 </table>
             </div>
          </div>
@@ -1343,7 +1365,11 @@ function mct_ai_getitpage() {
     //Page to set up the get-it bookmarklet
     require_once('./admin.php');
 
-    $title = 'Get It & Source It Bookmarklets';
+    if (mct_ai_menudisp()) {
+        $title = 'Get It & Source It Bookmarklets';
+    } else { 
+        $title = 'Get It Bookmarklet';
+    }
 
     require_once('./admin-header.php');
     $source_it = get_js_code();
@@ -1366,24 +1392,25 @@ function mct_ai_getitpage() {
      <div id="tabs">
         <ul>
         <li><a href="#tabs-1">Get It</a></li>
-        <?php if (current_user_can('edit_others_posts')) { ?>
+        <?php if (current_user_can('edit_others_posts') && mct_ai_menudisp()) { ?>
         <li><a href="#tabs-2">Source It</a></li>
          <?php } //end current user can publish ?>
         </ul>
         <div id="tabs-1">
             <h2>Get It</h2>
-                <p><?php _e('Get It is a bookmarklet: a little app that runs in your browser and lets you grab bits of the web. See the <a href="http://www.target-info.com/training-videos/#getit" />Get It Training Video</a>');?></p>
-                <p><?php _e('Use Get It to save articles to your training page as you are reading them in your browser or iPad!
-                    Now you can add all of the content you find while browsing the web, twitter and your social networks.  The content you 
-                    discover on your own can be posted right into the training page along with all of the content that MyCurator has discovered.  No 
-                    matter how you source it, MyCurator is your central repository for good content.');?></p>
+                <p><?php _e('Get It is a bookmarklet: a little app that runs in your browser and lets you grab bits of the web. ');
+                       if (mct_ai_menudisp()) _e(' See the <a href="http://www.target-info.com/training-videos/#getit" />Get It Training Video</a>.');
+                   ?></p>
+                <p><?php _e('Use Get It to save articles to your training posts or as draft posts as you are reading them in your browser or iPad!
+                    Now you can add all of the content you find while browsing the web, twitter and your social networks.');?></p>
                 <p><?php _e('After installing the Get It bookmarklet, whenever you see an article or blog post you would like to curate to your site,
-                    just click the Get It bookmark, choose the Topic for this article and click Save.  The article will be posted to your 
-                    training page as "not sure", with an excerpt and the attribution links.  The full readable page will be saved and you can use the 
-                    new article to train MyCurator as well as curate it onto your live blog.'); ?></p>
-                <p><?php _e('If MyCurator cannot grab the full text, it will post the article to the training page with the title and a link to the 
-                    original web page.  You can still curate the article to your live blog, but you will not have the full text and images in the
-                    WordPress post editor.');?></p>
+                    just click the Get It bookmark, choose the Topic for this article and click Save to Training Page.  The article will be posted to your 
+                    training page as "not sure", with an excerpt and the attribution links.  
+                    If you choose Save as Draft the article will be saved as a regular post with a Draft Status.
+                    Save as Draft and Edit will allow you to edit the Draft Post right now.  Just click the full screen icon (upper right) on your browser for more space.
+                    The full readable page will be saved along with any images.'); ?></p>
+                <p><?php _e('If Get It cannot grab the full text, it will post the article to the training posts or as a Draft post with the title and a link to the 
+                    original web page.  You will not have the full text and images in the WordPress post editor.');?></p>
                 <h3>PC/Mac Instructions</h3>
                 <p class="description"><?php _e('Drag-and-drop the following link to your bookmarks bar') ?></p>
                 <p class="pressthis"><a onclick="return false;" href="<?php echo htmlspecialchars( get_js_code() ); ?>"><span><?php _e('Get It') ?></span></a></p>
@@ -1405,7 +1432,7 @@ function mct_ai_getitpage() {
                     choose Copy All.  Touch the menu and choose Add Bookmark.  Edit the title to Get It then touch the Location box 
                     until the Edit Text menu appears.  Choose Paste then Done to save the bookmark') ?></p>
             </div>
-         <?php if (current_user_can('edit_others_posts')) { ?>
+         <?php if (current_user_can('edit_others_posts') && mct_ai_menudisp()) { ?>
             <div id="tabs-2">
             <h2>Source It</h2>
                 <p><?php _e('Source It is a bookmarklet: a little app that runs in your browser and lets you grab feeds directly from a site! 
@@ -1578,7 +1605,7 @@ function mct_ai_logspage() {
         //Get Values from Db
         $bottom = ($currentPage - 1) * $maxrow;
 	$top = $currentPage * $maxrow;
-        $sql = "SELECT `logs_date`, `logs_topic`, `logs_type`, `logs_msg`, `logs_url`
+        $sql = "SELECT `logs_date`, `logs_topic`, `logs_type`, `logs_msg`, `logs_url`, `logs_source`
             FROM $ai_logs_tbl ";
         if (!empty($topic) && !empty($type)){
             $sql .= " WHERE `logs_topic` = '$topic' AND `logs_type` = '$type'";
@@ -1602,6 +1629,7 @@ function mct_ai_logspage() {
                 <th>Topic</th>
                 <th>Type</th>
                 <th>Message</th>
+                <th>Source</th>
                 <th>URL</th>
                 </tr>
             </thead>
@@ -1619,8 +1647,9 @@ function mct_ai_logspage() {
                 echo('<td>'.$row['logs_topic'].'</td>');
                 echo('<td>'.$row['logs_type'].'</td>');
                 echo('<td>'.$row['logs_msg'].'</td>');
+                echo('<td>'.$row['logs_source'].'</td>');
                 if (!empty($row['logs_url'])){
-                    echo('<td><a href="'.$row['logs_url'].'" >'.$row['logs_url'].'</a>');
+                    echo('<td><a href="'.$row['logs_url'].'" >'.$row['logs_url'].'</a></td>');
                 }
                 echo('</tr>');
             } ?>
@@ -1732,6 +1761,7 @@ function mct_ai_createdb(){
             logs_aiclass varchar(20),
             logs_aigood FLOAT(5,4),
             logs_aibad FLOAT(5,4),
+            logs_source varchar(255),
             PRIMARY KEY  (logs_id)
     ) $charset_collate;";
     dbDelta($sql);
@@ -1819,7 +1849,7 @@ function mct_ai_showplan($display=true, $upgrade=true){
     global $wpdb, $ai_topic_tbl, $mct_ai_optarray;
     
     //return false on no token, since we won't have plan
-    if (empty($mct_ai_optarray['ai_cloud_token'])) return ($display) ? '<p><strong>You need an API Key before you can add Topics</strong></p>' : false;
+    if (empty($mct_ai_optarray['ai_cloud_token'])) return ($display) ? '<p><strong>Error - You need an API Key before you can add Topics</strong></p>' : false;
     //Get the plan
     if (empty($mct_ai_optarray['ai_plan'])){
         return ($display) ? "<p><strong>Error - No Plan Data Available, could not connect with cloud services.  Try again after 5 minutes. 
@@ -1832,7 +1862,7 @@ function mct_ai_showplan($display=true, $upgrade=true){
             If still having problems contact MyCurator support at support@target-info.com.</strong></p>" : false;
     }
     if ($plan['max'] == 0){
-        return ($display) ? '<p>Business Plan with Unlimited Topics and up to 10 Sites</p>' : true;
+        return ($display) ? '<p>Business Plan with Unlimited Topics</p>' : true;
     }
     //Get current topic counts
     $sql = "Select count(*) From $ai_topic_tbl";
@@ -1855,6 +1885,17 @@ function mct_ai_showplan($display=true, $upgrade=true){
         }
     }
     return ob_get_clean();
+}
+
+function mct_ai_menudisp(){
+    global $mct_ai_optarray;
+    
+    $name = mct_ai_showplan(true, false);
+    if (stripos($name,'error') !== false) return true;
+    if (stripos($name,'individual plan') !== false) return true;
+    
+    if (!empty($mct_ai_optarray['ai_hide_menu']) && !current_user_can('manage_options')) return false;
+    return true;
 }
 
 function mct_ai_clearlogs(){

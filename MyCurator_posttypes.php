@@ -32,6 +32,7 @@ add_filter('the_excerpt', 'mct_ai_traintags', 20);
 add_action('wp_enqueue_scripts','mct_ai_insertjs');
 //Ajax handler
 add_action('wp_ajax_mct_ai_train_ajax','mct_ai_train_ajax');
+add_action('wp_ajax_mct_ai_showpg_ajax','mct_ai_showpg_ajax');
 //Capability for author to see training page 
 add_filter('user_has_cap','mct_ai_hascap',10,3);
 
@@ -297,17 +298,12 @@ function target_ai_custom_col( $column, $post_id ) {
         break;
     case "expt":
         $content = get_the_content();
-        $pos = preg_match('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',$content, $matches); 
-         if ($pos) { 
-             echo $matches[2];
-             break;
-         }
-         $pos = preg_match('{<p id="mct_ai_excerpt">([^<]*)</p>}',$content, $matches); 
-         if ($pos) { 
-             echo $matches[1];
-             break;
-         }
-        //No excerpt so far, Check for video
+        $excerpt = mct_ai_getexcerpt($content);
+        if ($excerpt != '') {
+            echo $excerpt;
+            break;
+        }
+        //No excerpt, Check for video
         $pos = preg_match('{<iframe title="Video Player"}',$content,$matches);
         if ($pos) {
           //Inline thickbox
@@ -530,16 +526,7 @@ function mct_ai_inlinetb($post_id){
     
     $title = get_the_title($post_id);
     $content = get_the_content();
-    $excerpt = '';
-    $pos = preg_match('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',$content, $matches); 
-    if ($pos) {
-         $excerpt = $matches[2];
-    } else {
-         $pos = preg_match('{<p id="mct_ai_excerpt">([^<]*)</p>}',$content, $matches); 
-         if ($pos) { 
-             $excerpt = $matches[1];
-         }
-    }
+    $excerpt = mct_ai_getexcerpt($content);
 
    //inline page thickbox div
     $page = mct_ai_getslpage($post_id);
@@ -553,11 +540,11 @@ function mct_ai_inlinetb($post_id){
     $linktxt = $matches[1].' target="_blank">'.$matches[2].'</a>';
     $article = '<p>'.$linktxt.'</p>'.$article;
     ?>
-    <div id="ai-quick-<?php echo $post_id; ?>" style="max-width: 540px; display: none;">
+    <div id="ai-quick-<?php echo $post_id; ?>" style="max-width: 540px; display: none;" >
     <h2 style="text-align: center;">Quickly Publish or Save as Draft</h2>
     <strong>Title:</strong><br><input class="mct-tb-inputs" type="text" id="title-<?php echo $post_id; ?>" value="<?php echo $title; ?>" size="100" /><br>
     <strong>Notes/Comments:</strong><br><textarea class="mct-tb-inputs" id="note-<?php echo $post_id; ?>" rows="5" cols="100"></textarea><br>
-    <strong>Excerpt:</strong><br><textarea class="mct-tb-inputs" id="excerpt-<?php echo $post_id; ?>" rows="5" cols="100"><?php echo $excerpt; ?></textarea><br>
+    <strong>Excerpt:</strong><br><textarea class="mct-tb-inputs" id="excerpt-<?php echo $post_id; ?>" rows="5" cols="100" ><?php echo $excerpt; ?></textarea><br>
     <p style="text-align:center;">
         <input type="button" id="cancel" value="Cancel" onclick="tb_remove()"/>&nbsp;&nbsp;&nbsp;
         <input type="button" id="draft" value="Draft" onclick="quick_post(<?php echo $post_id; ?>,'draft');" />&nbsp;&nbsp;&nbsp;
@@ -881,9 +868,27 @@ function mct_ai_relmeta(){
     global $post_type, $hook_suffix;
 
     if($post_type == 'post'){
-        add_action("admin_print_scripts-{$hook_suffix}", 'mct_ai_queueit');
+        add_action("admin_print_scripts-{$hook_suffix}", 'mct_ai_showpg_queue');
 
     }
+}
+
+function mct_ai_showpg_queue(){
+    //Queue tab stuff
+    wp_enqueue_script('jquery-ui-tabs');
+    $style = plugins_url('css/MyCurator.css',__FILE__);
+    wp_register_style('myctabs',$style,array(),'1.0.0');
+    wp_enqueue_style('myctabs');
+    //Dialog and ajax
+    $jsdir = plugins_url('js/MyCurator_showpg.js',__FILE__);
+    wp_enqueue_script('mct_ai_showpg',$jsdir,array('jquery','jquery-ui-dialog'),'1.0.2');
+    $includes_url = includes_url();
+    $protocol = isset($_SERVER["HTTPS"]) ? 'https://' : 'http://';
+    $params = array(
+        'ajaxurl' => admin_url('admin-ajax.php',$protocol)
+    );
+    wp_localize_script('mct_ai_showpg', 'mct_ai_showpg', $params);
+    wp_enqueue_style('jquery-ui-dialog');
 }
 function mct_ai_relmetatarget(){
     add_meta_box('mct_ai_metabox','Relevance Data','mct_ai_relmetashow','target_ai','normal','low');
@@ -922,15 +927,28 @@ function mct_ai_showpage($post){
             $max++;
         }
     }
-    //Set up Initial Tab structure
+    //Set up dialog box
     ?>
-    <script>
-    //<![CDATA[
-    jQuery(document).ready(function($) {
-        jQuery( ".mct-ai-tabs #tabs" ).tabs();
-    });
-    //]]>
-    </script>
+    <div id="ai-dialog" title="Insert Image" style="margin-left:5px">
+        <p>Align/Size for Insert Into Post Only
+        <?php  echo '<img src="'.esc_url( admin_url( "images/wpspin_light.gif" ) ).'" alt="" id="ai-saving" style="display:none;" />'; ?></p>
+        <form>
+            <p><label for="ai_img_align"><strong>Alignment</strong></label></p>
+            <input name="ai_img_align" type="radio" id="ai_img_align" value="left" checked /> Left&nbsp;&nbsp;
+            <input name="ai_img_align" type="radio" id="ai_img_align" value="right"  /> Right&nbsp;&nbsp;
+            <input name="ai_img_align" type="radio" id="ai_img_align" value="center"  /> Center&nbsp;&nbsp;
+            <input name="ai_img_align" type="radio" id="ai_img_align" value="none"  /> None
+            <p><label for="ai_img_size"><strong>Size</strong></label></p>
+            <input name="ai_img_size" type="radio" id="ai_img_size" value="thumbnail" checked  /> Thumbnail&nbsp;&nbsp;
+            <input name="ai_img_size" type="radio" id="ai_img_size" value="medium"  /> Medium&nbsp;&nbsp;
+            <input name="ai_img_size" type="radio" id="ai_img_size" value="large"  /> Large&nbsp;&nbsp;
+            <input name="ai_img_size" type="radio" id="ai_img_size" value="full"  /> Full Size
+            <p><label for="ai_title_alt"><strong>Title/Alt Tags</strong></label></p>
+            <input name="ai_title_alt" type="text" id="ai_title_alt" size ="50" value="<?php echo $post->post_title; ?>" >
+            <input name="ai_post_id" type="hidden" id="ai_post_id" value="<?php echo $post->ID; ?>" >
+            <?php wp_nonce_field("mct_ai_showpg",'showpg_nonce', false);  ?>
+        </form>
+    </div>
     <div class="mct-ai-tabs">
     <div id="tabs">
         <ul>
@@ -976,6 +994,13 @@ function mct_ai_showpage($post){
         if ($i == 2) {
             echo '<input name="mct_ai_ismulti" type="hidden" value="1" />';  //Set this so we know we are publishing a multi post
         }
+        // click copy notice
+        ?>
+        <div id="ai-showpg-msg" style="float:right; width: 220px; border:1px solid; padding:2px;">
+            Click on Highlighted Text or Image to Insert into Post at Cursor - Turn off Click-Copy&nbsp;
+            <input name="usecopy" id="no-element-copy" type="checkbox" >
+        </div>
+        <?php
         echo '<p><strong>'.$title.'</strong></p>';
         echo '<p>'.$origlink.'</p>';
         echo $article;

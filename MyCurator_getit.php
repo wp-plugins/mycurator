@@ -41,22 +41,27 @@ function press_it() {
     $sql = "Select * From $ai_topic_tbl Where topic_name = '$tname'";
     $topic = $wpdb->get_row($sql, ARRAY_A);
     $postit = false;
+    $newpost = false;
     if (!empty($topic)){
         //Post using cloud process
         if (mct_ai_cloudtopic($topic)) {
             $post_arr = array(); 
             $post_arr['current_link'] = $url;
             $post_arr['getit'] = '1';
+            $post_arr['source'] = 'GetIt';
             $page = 'Not Here';
             $postit = mct_ai_cloudclassify($page, $topic, $post_arr);
             //update the style sheet with the local copy
             $page = $post_arr['page'];
             $page = str_replace("mct_ai_local_style",plugins_url('MyCurator_page.css',__FILE__), $page);
             $post_arr['classed'] = 'not sure';
-            if ($postit) mct_ai_post_entry($topic, $post_arr, $page);
+            if ($postit) $newpost = mct_ai_post_entry($topic, $post_arr, $page);
+            if ((!empty($_REQUEST['draft']) || !empty($_REQUEST['draftedit'])) && $newpost) {
+                mct_ai_traintoblog($newpost,'draft');
+            }
         }
     }
-    if ($postit) return 1;
+    if ($postit) return $newpost;
     
     //Didn't render page or post correctly, just create an excerpt with the selection and post to training page
     $selection = isset($_POST['selection']) ? sanitize_text_field($_POST['selection']) : '';
@@ -86,9 +91,11 @@ function press_it() {
     );
     $details['post_type'] = 'target_ai'; //post as a target
     //and post it
-    $post_id = wp_insert_post($details);
-    
-    return $post_id;
+    $newpost = wp_insert_post($details);
+    if (!empty($_REQUEST['draft']) || !empty($_REQUEST['draftedit'])) {
+        mct_ai_traintoblog($newpost, 'draft');
+    }
+    return $newpost;
 }
 
 // For submitted posts.
@@ -162,7 +169,7 @@ var photostorage = false;
 </style>
 <script type="text/javascript">
 jQuery(document).ready(function($) {
-    jQuery('#publish, #submit').click(function() { jQuery('#saving').css('display', 'inline'); });
+    jQuery('#publish, #submit, #draft').click(function() { jQuery('#saving').css('display', 'inline'); });
 });
 </script>
 </head>
@@ -192,9 +199,15 @@ jQuery(document).ready(function($) {
 			<div id="message" class="updated">
 			<p><strong><?php _e('Your post has been saved.'); ?></strong>
 			<a href="#" onclick="window.close();"><?php _e('Close Window'); ?></a></p>
-                        <script type="text/javascript">setTimeout('self.close();',2000);</script>
+                        
 			</div>
-		<?php exit(); } ?>
+		<?php   if (isset($_REQUEST['draftedit'])) {
+                            $edit_url = get_edit_post_link( $posted, array('edit' => '&amp;'));
+                            wp_redirect($edit_url);
+                        } else {
+                           ?><script type="text/javascript">setTimeout('self.close();',2000);</script><?php
+                        }
+                        exit(); } ?>
 
 		<div id="titlediv">
 			<div class="titlewrap">
@@ -225,6 +238,8 @@ jQuery(document).ready(function($) {
                     </div>
              </div>
             <input name="submit" id="submit" value="Save to Training Page" type="submit" class="button-primary">
+            <input name="draftedit" id="draftedit" value="Save Draft & Edit" type="submit" class="button-primary" style="float:right">
+            <input name="draft" id="draft" value="Save as Draft" type="submit" class="button-primary" style="float:right">
             <img src="<?php echo esc_url( admin_url( 'images/wpspin_light.gif' ) ); ?>" alt="" id="saving" style="display:none;" />
         <?php } //else on topics ?>
         </div>

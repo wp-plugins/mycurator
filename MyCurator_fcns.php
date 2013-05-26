@@ -5,7 +5,7 @@
 */
 
 
-function mct_ai_log($topic, $type, $msg, $url){
+function mct_ai_log($topic, $type, $msg, $url, $source = null){
     //This function creates a log entry from the passed in values
     global $wpdb, $ai_logs_tbl;
     
@@ -14,7 +14,8 @@ function mct_ai_log($topic, $type, $msg, $url){
                 'logs_topic' => $topic,
                 'logs_type' => $type,
                 'logs_url' => $url,
-                'logs_msg' => $msg
+                'logs_msg' => $msg,
+                'logs_source' => $source
             );
     $wpdb->insert($ai_logs_tbl, $ins_array);
     
@@ -55,6 +56,24 @@ function mct_ai_postlink($args){
     if (is_wp_error($linkval)){
         return $linkval->get_error_message();
     }
+    return '';
+}
+
+function mct_ai_getexcerpt($content){
+    //Retrieves the excerpt from the content, typically post content
+    //uses strpos so that the excerpt can contain html
+    $pos = stripos($content,'<blockquote id="mct_ai_excerpt">'); 
+    if ($pos !== false) {
+         $end = stripos($content,'</blockquote>',$pos+31);
+         if ($end !== false) return substr($content,$pos+32,$end-($pos+32));
+         return '';
+    } 
+    $pos = stripos($content,'<p id="mct_ai_excerpt">'); 
+    if ($pos !== false) {
+         $end = stripos($content,'</p>',$pos+23);
+         if ($end !== false) return substr($content,$pos+23,$end-($pos+23));
+         return '';
+    } 
     return '';
 }
 
@@ -499,5 +518,65 @@ function mct_ai_traintoblog($thepost, $status){
 function mct_ai_train_multi($pid){
     //Set multi ai_class
    return wp_set_object_terms($pid,'multi','ai_class',false);
+}
+
+function mct_ai_showpg_ajax() {
+    //Ajax functions to insert/set featured image from editor
+    $response = new WP_Ajax_Response;
+    
+    //Get args
+    
+    $pid = intval($_POST['pid']);
+    $src = $_POST['imgsrc'];
+    $type = $_POST['type'];
+    $title = $_POST['title'];
+    //check nonce
+    if (!check_ajax_referer('mct_ai_showpg','nonce',false)) {
+        $response->add(array('data' => 'Error - Bad Nonce'));
+        $response->send();
+        exit();
+    }
+    $thumb_id = mct_ai_postthumb($src,$pid, $title);
+    if (!$thumb_id) {
+        $response->add(array('data' => 'Error - Could not save image'));
+        $response->send();
+        exit();
+    }
+    //handle insert
+    if ($type == 'insert'){
+        $details = array();
+        $url = get_permalink( $pid );
+        $align = $_POST['align'];
+        $size = $_POST['size'];
+        $src = wp_get_attachment_image_src($thumb_id,$size);
+        if (!$src) {
+            $src = wp_get_attachment_image_src($thumb_id,'thumbnail');  //try thumbnail
+            if (!$src) wp_get_attachment_image_src($thumb_id,'full');  //try full size
+        }
+        if ($src) {
+            $imgstr = '<a href="'.$url.'"><img class="size-'.$size.' align'.$align.'" alt="'.$title.'" src="'.$src[0].'" width="'.$src[1].'" height="'.$src[2].'" /></a>';
+            $response->add(array(
+                'data' => 'Ok', 
+                'supplemental' => array(
+                    'imgstr' => $imgstr
+                ),
+           ));
+        } else {
+            $response->add(array('data' => 'Error - Could not get source'));
+        }
+    }
+    //handle featured image
+    if ($type == 'feature'){
+        $ret = update_post_meta( $pid, '_thumbnail_id', $thumb_id );
+        $html = _wp_post_thumbnail_html( $thumb_id, $pid );
+        $response->add(array(
+                'data' => 'Ok', 
+                'supplemental' => array(
+                    'imgstr' => $html
+                ),
+           ));
+    }
+    $response->send();
+    exit();
 }
 ?>

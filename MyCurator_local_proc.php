@@ -64,7 +64,7 @@ function mct_ai_process_topic($topic){
         }
         foreach ($feeds as $feed){
             if (empty($feed->link_rss)){
-                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, 'No feed rss link for feed: '.$feed->link_name, $feed->link_rss);
+                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, 'No feed rss link for feed: '.$feed->link_name, $feed->link_rss, $feed->link_name);
                 continue;  //no feed in link
             }
             //replace &amp; with & - from db sanitization
@@ -73,7 +73,7 @@ function mct_ai_process_topic($topic){
             $nowdate = new DateTime('now');
             $thefeed = fetch_feed($feed->link_rss);
             if (is_wp_error($thefeed)){
-                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, $thefeed->get_error_message(),$feed->link_rss);
+                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, $thefeed->get_error_message(),$feed->link_rss, $feed->link_name);
                 continue;  //feed error
             }
             mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Processing Feed ', $feed->link_name);
@@ -95,6 +95,7 @@ function mct_ai_process_topic($topic){
                 $anynewposts = true; // Something fits our timeframe
                 unset($postdate);
                 $post_arr = array();  //will hold the post info as we build it
+                $post_arr['source'] = $feed->link_name;  //save this source for log
                 $page = mct_ai_get_page($item, $topic, $post_arr);  //try and get the page from the postsread file, 
                 if (empty($page)){
                     continue;  //no more work, try the next item
@@ -159,7 +160,7 @@ function mct_ai_get_page($item, $topic, &$post_arr){
             $elink = $ilink = trim('http://t.co/'.$matches[1]);  //get just first link
             $ilink = mct_ai_tw_expandurl($ilink);
             if ($ilink == '') {
-                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, "Could Not Resolve Twitter Link",$elink);
+                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, "Could Not Resolve Twitter Link",$elink, $post_arr['source']);
                 return '';
             }
             //mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'Twitter Article Found',$ilink);  //TESTING ONLY
@@ -242,7 +243,7 @@ function mct_ai_cloudclassify($page,$topic,&$post_arr){
     if (!empty($response->LOG)) {
         $log = get_object_vars($response->LOG);
         //Log the error and return false
-        mct_ai_log($log['logs_topic'], $log['logs_type'], $log['logs_msg'], $log['logs_url']);
+        mct_ai_log($log['logs_topic'], $log['logs_type'], $log['logs_msg'], $log['logs_url'], $post_arr['source']);
         return false;    
     }
 
@@ -349,12 +350,14 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     //else if relevance type and active: post good to blog(cat/tag), unknown to training
     //  else post training for all 
     //if relevance also log ai probs
+    //return post id if successful, else false
     
     //Get Topic Options
     $topic_opt = mct_ai_get_topic_options($topic);
     // Get an image if we can - 1st match of appropriate size
     $image = '';
     $imgtitle = '';
+    $thumb_id = 0;
     if (!empty($mct_ai_optarray['ai_save_thumb'])  || !empty($mct_ai_optarray['ai_post_img'])) {
         $regexp1 = '{<img [^>]*src\s*=\s*("|\')([^"\']*)("|\')[^>]*>}i'; 
         $pos = preg_match_all($regexp1,$page,$matchall, PREG_SET_ORDER);
@@ -372,9 +375,9 @@ function mct_ai_post_entry($topic, $post_arr, $page){
             }
         }
     }
-    if (!empty($topic_opt['opt_image_filter']) && empty($image)) {
-        mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'No Image Found',$post_arr['current_link']);
-        return;  //Skip if no image and image filter set in topic
+    if (!empty($topic_opt['opt_image_filter']) && empty($image) && empty($post_arr['getit'])) {
+        mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'No Image Found',$post_arr['current_link'], $post_arr['source']);
+        return false;  //Skip if no image and image filter set in topic
     }
     //Good item, so save a copy of page (postsread version will go away eventually) and setredirect value
     $wpdb->insert($ai_sl_pages_tbl, array ('sl_page_content' => $page));
@@ -498,7 +501,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     update_post_meta($post_id,'mct_sl_origurl',array($post_arr['current_link']));
     update_post_meta($post_id,'mct_sl_newurl',array($link_redir));
     //update relevance classification 
-    if ($topic['topic_type'] == 'Relevance'){
+    if ($topic['topic_type'] == 'Relevance' && empty($post_arr['getit'])){
         update_post_meta($post_id, 'mct_ai_relevance',array(
             'classed' => $post_arr['classed'],
             'good' => sprintf('%.6f',$post_arr['good']),
@@ -507,6 +510,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         ));
     }
     //update the image if found as the featured image or inserted image for the post 
+    if (!empty($mct_ai_optarray['ai_image_title'])) $imgtitle = $post_arr['title'];
     if ($topic['topic_type'] != 'Video' && !empty($image)){
         $thumb_id = mct_ai_postthumb($image,$post_id, $imgtitle);
     }
@@ -518,7 +522,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         //Add image to start of post if set
         if (isset($mct_ai_optarray['ai_post_img']) && $mct_ai_optarray['ai_post_img'] ){
             $details = array();
-            $url = wp_get_attachment_url($thumb_id);
+            $url = get_permalink( $post_id );
             $align = $mct_ai_optarray['ai_img_align'];
             $size = $mct_ai_optarray['ai_img_size'];
             $src = wp_get_attachment_image_src($thumb_id,$size);
@@ -537,7 +541,8 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     }
     //update the saved page with the post id
     $wpdb->update($ai_sl_pages_tbl, array('sl_post_id' => $post_id), array ('sl_page_id' => $page_id));
-    mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'New '.$post_msg.' post',$post_arr['current_link']);
+    mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'New '.$post_msg.' post',$post_arr['current_link'], $post_arr['source']);
+    return $post_id;
 }
 
 function mct_ai_getpostcontent($page, &$post_arr, $type){
@@ -593,6 +598,15 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
             return;
         }
     }
+    //Check for line breaks if option set
+    if (!empty($mct_ai_optarray['ai_line_brk'])) {
+        $article = preg_replace('{</p>\n?<p[^>]*>}','&&&&',$article);
+        $article = preg_replace('{</li>}','&&&&',$article);
+        $article = preg_replace('{<o|ul>}','&&&&',$article);
+        $article = preg_replace('{</h[1-9]>}','&&&&',$article);
+        $article = preg_replace('{<br\s?/?>}','&&',$article);
+    }
+    
     $article = preg_replace('@<style[^>]*>[^<]*</style>@i','',$article);  //remove style tags
     $article = preg_replace('{<([^>]*)>}',' ',$article);  //remove tags but leave spaces
     //$article = preg_replace('{&[a-z]*;}',"'",$article);  //remove any encoding
@@ -603,18 +617,33 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
         $post_arr['article'] = '';
         return;  //no excerpt if set to 0
     }
+    
+    //Get the word count specified
     $words = explode(' ', $excerpt, $excerpt_length + 1);
     if ( count($words) > $excerpt_length ) {
             array_pop($words);
             array_push($words, '[...]');
             $excerpt = implode(' ', $words);
     }
+    //Replace any line break if set previously
+    if (!empty($mct_ai_optarray['ai_line_brk'])) {
+        $excerpt = preg_replace('{^\s*&&+}','',$excerpt); //no leading breaks from initial image as <p>
+        $excerpt = preg_replace('{&&\s?&&\s?(&&\s?)+}','&&&&',$excerpt);  //Only one full break, not multiple
+        $limit = 4; //limit line breaks based on excerpt length
+        if ($excerpt_length > 80) $limit = 2*absint($excerpt_length/40);
+        $excerpt = preg_replace('{&&}','<br>',$excerpt, $limit); 
+        $excerpt = preg_replace('{&&}','',$excerpt); 
+    }
     if (isset($mct_ai_optarray['ai_no_quotes']) && $mct_ai_optarray['ai_no_quotes'] ) {
         $post_arr['article'] = '<p id="mct_ai_excerpt">'.$excerpt.'</p>';  //save article
     } else {
-        $post_arr['article'] = '<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';  //save article
+        if (!empty($mct_ai_optarray['ai_line_brk'])) {
+            $post_arr['article'] = '<blockquote id="mct_ai_excerpt"><p>'.$excerpt.'</p></blockquote>';  //save article
+        } else {
+            $post_arr['article'] = '<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';  //save article
+        }
     }
-    
+
 }
 
 function mct_ai_formatlink($post_arr){
