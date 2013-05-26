@@ -1,30 +1,31 @@
 === MyCurator ===
 Contributors: mtilly
 Donate link: 
-Tags: content curation, curation tools, curation software, curation plugin, content marketing, content management, content discovery, marketing, SEO
+Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
 Tested up to: 3.5
-Stable tag: 1.3.2
+Stable tag: 1.3.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator plugin is content curation software that provides fresh content and builds SEO for your WordPress site. 
+MyCurator plugin is content curation software that makes it easy to create fresh content for your WordPress site.
 
 == Description ==
 
 MyCurator is professional content curation software for WordPress sites. 
-MyCurator works tirelessly in the background delivering a pipeline of content to you through the day, ready for your curation efforts. 
-Integrated into WordPress, each article found by MyCurator includes the full text and all images as well as the attribution to the original page, 
-ready to use your SEO, theme styling and plugins.  You can easily grab quotes and images for your curated post, adding your insights 
-and comments, quickly creating newly curated content for your site.
+MyCurator works tirelessly in the background delivering a pipeline of content to you throughout the day, ready for your curation efforts. 
+Integrated into WordPress, each article found by MyCurator includes the full text and all images as well as the attribution to the original page.  
+Just click on quotes and images to insert them into your curated post, then add your insights 
+and comments, quickly creating fresh content for your site.  Regular content curation can help build your article writing skills too.
 
 Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 
-* Pro-actively finds the content you want, no need to search every time, making it easy to regularly curate new posts.
+* Pro-actively finds the content you want, no need to search every time, inspiring you to regularly curate new posts.
 * Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk curation tools.
 * Customize to your specific niche by choosing what sources to read and what to look for in each article
 * For even more content accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
 * The full text and all images for each article are available as a meta box in the WordPress post editor.
+* Curated content writing is quick, just click on a paragraph, list, table or image and its inserted into your blog article immediately.
 * Attribution to the original article is automatically inserted into the curated post.
 * Curated posts have access to SEO, theme options and other plugins of your environment just as with a regular post
 * Get It Bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
@@ -37,9 +38,10 @@ Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 MyCurator is powerful corporate level software brought to you as a plugin.  It uses a cloud process to perform 
 intensive AI processing and article classification.  This allows MyCurator to maintain a low processing overhead on your site.
 
-MyCurator allows you to curate 2 Topics (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
+MyCurator allows you to curate a Topic (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
 cloud services.  For those who need to curate a lot of different topics or for multiple sites, low priced monthly plans are 
-available - always with a free 30 day trial.  Visit http://www.target-info.com/pricing/ for more information.
+available - always with a free 30 day trial.  Visit http://www.target-info.com/pricing/ for more information on how MyCurator can add 
+content curation to your content marketing capabilities.
 
 == Installation ==
 
@@ -85,6 +87,16 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.3.3 =
+* Click to Copy any paragraph, table or list into your post from the Saved Page meta box.
+* Click to insert an image or set as featured from any image in your Saved Page meta box.
+* Get It will save article as a Draft post, and you can follow into the Editor.
+* Save line breaks to the excerpt created by MyCurator.
+* Use Post Title as the Image title and for the Image Alt tag.
+* Options for Insert image are on Basic Options tab with Featured Option.
+* Display the source for each article in the Logs.
+* Use the post link rather then the image url when you click on an inserted image.
 
 = 1.3.2 =
 * Add the ability to enter an author for each Topic, with role of Author or higher.
