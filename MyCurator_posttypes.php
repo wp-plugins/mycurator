@@ -527,7 +527,7 @@ function mct_ai_inlinetb($post_id){
     $title = get_the_title($post_id);
     $content = get_the_content();
     $excerpt = mct_ai_getexcerpt($content);
-
+    $excerpt = str_replace('<br>',PHP_EOL,$excerpt);
    //inline page thickbox div
     $page = mct_ai_getslpage($post_id);
     if (is_admin()) {
@@ -644,14 +644,9 @@ function mct_ai_traintags($content){
                  $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
                  $content = $matches[1].'> '.$matches[2].'</a>'.$content;
                  //Decide where to put this article
-                 if (stripos($content,'<blockquote id="mct_ai_excerpt">') !== false) {
-                     //Replace the excerpt with the full article
-                     $content = preg_replace('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',"<br />".$article,$content,-1,$rcnt);
-                     if (!$rcnt) $content = $content."<br>".$article; //Replace failed, Just put it at the end...
-                 } elseif (stripos($content,'<p id="mct_ai_excerpt">') !== false) {
-                     //Replace the excerpt with the full article
-                     $content = preg_replace('{<p id="mct_ai_excerpt">([^<]*)</p>}',"<br />".$article,$content,-1,$rcnt);
-                     if (!$rcnt) $content = $content."<br>".$article; //Replace failed, Just put it at the end...
+                 $newcontent = mct_ai_resetexcerpt($content,"<br />".$article);
+                 if (!empty($newcontent)) {
+                     $content = $newcontent;
                  } elseif (!empty($linktxt)) {
                      //Keep the content as it has been changed from simple excerpt
                      //Place the article in front of the link
@@ -1229,6 +1224,7 @@ function bwc_create_news(){
     <p>Use this option to create a google news feed or twitter search that will be placed into your links for the link category you choose.  
         You can also follow a twitter user by choosing Twitter Search Feed and entering their @username in the Keywords.
         You can then use this feed in any of your MyCurator Topics by including the link category as a source.</p>
+    <p>To use Twitter Search or Follow a Twitter User you must set up a Twitter App in the Twitter Tab under Options</p>
     <p><strong>All fields are required except a New Link Category</strong></p>
     <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] ); ?>"> 
         <table class="form-table" >

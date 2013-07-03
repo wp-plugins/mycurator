@@ -34,6 +34,12 @@ $proc_id = strval(rand(1,10000));
 //Get the process queue if available
 $proc_q = array();
 $proc_q = get_option('mct_ai_proc_queue');
+if (!empty($proc_q)) {
+    if (get_transient('mct_ai_proc_queue') === false) {  //is proc queue stale?
+        delete_option('mct_ai_proc_queue');  //restart as proc queue is stale
+        $proc_q = array(); //empty proc_q
+    }
+}
 if (empty($proc_q)) {
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Start Process: '.$proc_id.'  ', ' ');
 } else {
@@ -58,6 +64,7 @@ if (empty($proc_q)) {
     }
 
     update_option('mct_ai_proc_queue', $proc_q);  //set the process queue option
+    set_transient('mct_ai_proc_queue','proc queue timer',60*60*36);  //Set the 'stale' timer
     //Start new process to do the work
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'New Queue, End Process: '.$proc_id.'  ', implode(',',$proc_q));
     mct_ai_new_proc();
@@ -71,14 +78,29 @@ $sql = "SELECT *
     WHERE topic_id = '$thistopic'";
     $topic = $wpdb->get_row($sql, ARRAY_A);
 if ($wpdb->num_rows){  //may have been deleted since we set up the queue
+    //Check last run is more than 2 hours (7200 seconds) ago
+    if (!empty($topic['topic_last_run'])){
+        $lastrun = strtotime($topic['topic_last_run']);
+        $now = strtotime($wpdb->get_var('Select now()'));  //use mysql time
+        if (($now - $lastrun) < 7200) {
+            mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Stopping, Topic recently updated '.$proc_id.'  ', ' ');
+            //delete_option('mct_ai_proc_queue');  //no more work
+            exit();
+        }
+    }
+    $sql = "UPDATE $ai_topic_tbl SET topic_last_run = now() WHERE topic_id = '$thistopic'";
+    $wpdb->query($sql);
+    unset($topic['topic_last_run']);  //Don't pass to cloud
     mct_ai_process_topic($topic);
 }
 //All done, 
 if (empty($proc_q)){
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'End Site Processing: '.$proc_id.'  ', ' ');
     delete_option('mct_ai_proc_queue');  //no more work
+    delete_transient('mct_ai_proc_queue'); 
 } else {
     update_option('mct_ai_proc_queue',$proc_q);
+    set_transient('mct_ai_proc_queue','proc queue timer',60*60*36);//Set the 'stale' timer
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'End Process: '.$proc_id.'  ', implode(',',$proc_q));
     mct_ai_new_proc(); //Start the next process 
 }
@@ -96,14 +118,10 @@ function mct_ai_new_proc(){
         $url = plugins_url('MyCurator_process_page.php',__FILE__);
     }
 
-    $ch = curl_init();
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 2);  //Set timeout to 2ms so we return and let it run
-
-    curl_exec($ch);
-    curl_close($ch);
+    $response = wp_remote_get($url);
+    if( is_wp_error( $response ) && stripos($response->get_error_message(),'timed out') === false ) {//ignore timeout - we expect it
+        mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Error '.$response->get_error_message()." starting MyCurator",$url);
+    }
 }
 
 function mct_ai_newblog($bid){
