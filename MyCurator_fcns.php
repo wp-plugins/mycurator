@@ -77,6 +77,45 @@ function mct_ai_getexcerpt($content){
     return '';
 }
 
+function mct_ai_setexcerpt($excerpt) {
+    //Set the excerpt in the right tags based on options
+    global $mct_ai_optarray;
+    if (empty($mct_ai_optarray['ai_no_quotes'])) {
+        if (!empty($mct_ai_optarray['ai_line_brk'])) {
+            return '<blockquote id="mct_ai_excerpt"><p>'.$excerpt.'</p></blockquote>';
+        } else {
+            return '<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';
+        }
+    } else {
+        return '<p id="mct_ai_excerpt">'.$excerpt.'</p>';
+    }
+}
+function mct_ai_resetexcerpt($content,$newtext){
+    //Reset  the excerpt from the newtext, typically post content
+    //uses strpos so that the excerpt can contain html
+    $pos = stripos($content,'<blockquote id="mct_ai_excerpt">'); 
+    if ($pos !== false) {
+         $end = stripos($content,'</blockquote>',$pos+31);
+         if ($end !== false) {
+             $p1 = substr($content,0,$pos);
+             $p2 = substr($content,$end+13);
+             return $p1.$newtext.$p2;
+         }    
+         return '';
+    } 
+    $pos = stripos($content,'<p id="mct_ai_excerpt">'); 
+    if ($pos !== false) {
+         $end = stripos($content,'</p>',$pos+23);
+         if ($end !== false) {
+            $p1 = substr($content,0,$pos);
+            $p2 = substr($content,$end+4);
+            return $p1.$newtext.$p2; 
+         }
+         return '';
+    } 
+    return '';
+}
+
 function mct_ai_get_trainpage(){
     //returns a post object of type page for the training page on the site
     $pages = get_pages(array('post_status' => 'publish,private'));
@@ -409,25 +448,24 @@ function mct_ai_train_ajax() {
         $newpost = array();
         $newpost['ID'] = $pid;
         $newpost['post_title'] = trim(sanitize_text_field($_POST['title']));
-        $excerpt = trim(sanitize_text_field($_POST['excerpt']));
-        $notes = trim(sanitize_text_field($_POST['note']));
+        //$excerpt = trim(sanitize_text_field($_POST['excerpt']));
+        $excerpt = str_replace(PHP_EOL,'<br>',$_POST['excerpt']);
+        $excerpt = wp_kses_post($excerpt);
+        $notes = str_replace(PHP_EOL,'<br>',$_POST['note']);
+        $notes = wp_kses_post($notes);
+        //$notes = trim(sanitize_text_field($_POST['note']));
         $type = trim(sanitize_text_field($_POST['type']));
         $content = $thepost['post_content'];
         //new text
         $newtext = '';
         if (!empty($notes)) $newtext = '<p>'.$notes.'</p>';
         if (!empty($excerpt)){
-            if (empty($mct_ai_optarray['ai_no_quotes'])) {
-                $newtext = $newtext.'<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';
-            } else {
-                $newtext = $newtext.'<p id="mct_ai_excerpt">'.$excerpt.'</p>';
-            }
+            $newtext = $newtext.mct_ai_setexcerpt($excerpt);
         }
         //place in content
-        if (stripos($content,'<blockquote id="mct_ai_excerpt">') !== false) {
-            $content = preg_replace('{<blockquote id="mct_ai_excerpt">(<p>)?([^<]*)(</p>)?</blockquote>}',$newtext,$content);
-        } elseif (stripos($content,'<p id="mct_ai_excerpt">') !== false) {
-            $content = preg_replace('{<p id="mct_ai_excerpt">([^<]*)</p>}',$newtext,$content);
+        $newcontent = mct_ai_resetexcerpt($content,$newtext);  //- this will remove line breaks on any update
+        if (!empty($newcontent)) {
+            $content = $newcontent;
         } elseif (stripos($content, '<p id="mct-ai-attriblink">') !== false) {
             //place just in front of link
             $pos = stripos($content, '<p id="mct-ai-attriblink">');

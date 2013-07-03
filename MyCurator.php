@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 1.3.3
+ * Version: 1.3.4
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -34,7 +34,7 @@ define ('MCT_AI_REDIR','ailink');
 define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
-define ('MCT_AI_VERSION', '1.3.3');
+define ('MCT_AI_VERSION', '1.3.4');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -888,6 +888,7 @@ function mct_ai_optionpage() {
     global $mct_ai_optarray;
     
     $msg = '';
+    $errmsg = '';
     //Set up user login dropdown
    $allusers = get_users(array('role' => 'editor'));
    $moreusers = get_users(array('role' => 'administrator'));
@@ -936,6 +937,8 @@ function mct_ai_optionpage() {
             'ai_line_brk' => absint($_POST['ai_line_brk']),
             'ai_hide_menu' => absint($_POST['ai_hide_menu']),
             'ai_image_title' => absint($_POST['ai_image_title']),
+            'ai_tw_conk' => trim(sanitize_text_field($_POST['ai_tw_conk'])),
+            'ai_tw_cons' => trim(sanitize_text_field($_POST['ai_tw_cons'])),
             'ai_plan' => $mct_ai_optarray['ai_plan'],
             'MyC_version' => $mct_ai_optarray['MyC_version']
         );
@@ -966,6 +969,33 @@ function mct_ai_optionpage() {
                 wp_clear_scheduled_hook('mct_ai_cron_process');  //Clear out old entries
             }
         }
+        //Set up twitter
+        if (!empty($opt_update['ai_tw_conk']) && !empty($opt_update['ai_tw_cons'])) {
+            require_once(plugin_dir_path(__FILE__).'lib/class-mct-tw-api.php');
+            $credentials = array(
+              'consumer_key' => $opt_update['ai_tw_conk'],
+              'consumer_secret' => $opt_update['ai_tw_cons']
+            );
+            //Get bearer token with this call if needed
+            add_filter( 'https_ssl_verify', '__return_false' );
+            add_filter( 'https_local_ssl_verify', '__return_false' );
+            $twitter_api = new mct_tw_Api( $credentials );
+            if ($twitter_api->has_error) {
+                $errmsg = 'Could Not Set Up Twitter Account: '.$twitter_api->api_errmsg;
+            }
+            remove_filter( 'https_ssl_verify', '__return_false' );
+            remove_filter( 'https_local_ssl_verify', '__return_false' );
+            unset ($twitter_api);
+        } else {
+            require_once(plugin_dir_path(__FILE__).'lib/class-mct-tw-api.php');
+            //Reset bearer token if any credentials are empty
+            $credentials = array(
+              'consumer_key' => $opt_update['ai_tw_conk'],
+              'consumer_secret' => $opt_update['ai_tw_cons']
+            );
+            $twitter_api = new mct_tw_Api( $credentials );
+            unset ($twitter_api);
+        }
     }
     //Get Options
     $cur_options = get_option('mct_ai_options');
@@ -989,6 +1019,9 @@ function mct_ai_optionpage() {
     <?php if (!empty($msg)){ ?>
        <div id="message" class="updated" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php } ?>
+       <?php if (!empty($errmsg)){ ?>
+       <div id="message" class="error" ><p><strong><?php echo $errmsg ; ?></strong></p></div>
+    <?php } ?>
     <p>Use this page to Turn On MyCurator and enter the Cloud Services Token.  
         You can set MyCurator options as described - 
         see <a href="http://www.target-info.com/documentation-2/documentation-options/" >Options Documentation</a> for more details.</p>
@@ -999,7 +1032,8 @@ function mct_ai_optionpage() {
             <li><a href="#tabs-1">Basic</a></li>
             <li><a href="#tabs-2">Curation</a></li>
             <li><a href="#tabs-3">Format</a></li>
-            <li><a href="#tabs-4">Admin</a></li>
+            <li><a href="#tabs-4">Twitter</a></li>
+            <li><a href="#tabs-5">Admin</a></li>
             </ul>
             <div id="tabs-1">            
                 <table class="form-table" >
@@ -1143,7 +1177,7 @@ function mct_ai_optionpage() {
                 <tr>
                     <th scope="row">Save Line Breaks in Excerpt?</th>
                     <td><input name="ai_line_brk" type="checkbox" id="ai_line_brk" value="1" <?php checked('1', $cur_options['ai_line_brk']); ?>  />
-                    <span>&nbsp;<em>Warning: Do not use this option if you are displaying the full text readable article on the single post page - see <a href="http://www.target-info.com/documentation-2/documentation-options/">Options</a> documentation</em></span></td>    
+                    <span>&nbsp;<em>Warning: Use Blockquoted excerpt with this option if you are displaying the full text readable article on the single post page - see <a href="http://www.target-info.com/documentation-2/documentation-options/">Options</a> documentation</em></span></td>    
                 </tr>
                 <tr>
                     <th scope="row"># of Articles shown on Training Page</th>
@@ -1153,6 +1187,32 @@ function mct_ai_optionpage() {
                 </table>
             </div>
             <div id="tabs-4">
+                <h3>To Set up your Twitter Keys see below or our <a href=" http://www.target-info.com/documentation-2/documentation-twitter-api/" target="_blank">Documentation</a> page with screen shots</h3>
+                <p>Go to the Developers website: <a href="https://dev.twitter.com/apps" target ="_blank">https://dev.twitter.com/apps</a>. Sign in with your Twitter Account.  
+                    Click Create a new application button on the right.</p>
+                <p>Fill in the Application Details page.  You should use your own application names and descriptions.  
+                    Scroll to the bottom of the page, click the Yes I agree checkbox and enter the Captcha information.  
+                    Click the Create your Twitter Application button at the bottom.</p>
+                <p>Copy the Consumer Key and Consumer Secret from the details screen under the Oath Settings heading into 
+                    the same fields below.  Click Save Options and you should be 
+                    ready to process your Twitter searches and follows.</p>
+                <h3>To Change your Twitter Keys</h3>
+                <p>If you wish to switch to a new Twitter App, you need to first blank out one or both of the fields below and then Save Options.  
+                    This will remove your old application from the database.  Come back to this Tab and then copy in your new Consumer Key and Secret then Save Options again.</p>
+                <table class="form-table" >
+                <tr><th><strong>Twitter App Settings</strong></th>
+                <td> </td></tr>
+                <tr>
+                    <th scope="row">Twitter App Consumer Key</th>
+                    <td><input name="ai_tw_conk" type="text" id="ai_tw_conk" size ="75" value="<?php echo $cur_options['ai_tw_conk']; ?>"  /></td> 
+                </tr>
+                <tr>
+                    <th scope="row">Twitter App Consumer Secret</th>
+                    <td><input name="ai_tw_cons" type="password" id="ai_tw_cons" size ="75" value="<?php echo $cur_options['ai_tw_cons']; ?>"  /></td> 
+                </tr>
+                </table>
+            </div>    
+            <div id="tabs-5">
                 <table class="form-table" >
                <tr><th><strong>Administrative Settings</strong></th>
                 <td> </td></tr>
@@ -1733,6 +1793,7 @@ function mct_ai_createdb(){
             topic_tag int(11),
             topic_tag_search2 char(1),
             topic_options text,
+            topic_last_run DATETIME,
             PRIMARY KEY  (topic_id),
             KEY topic_name (topic_name)
     ) $charset_collate;";
@@ -1792,14 +1853,12 @@ function mct_ai_run_mycurator(){
         $url = plugins_url('MyCurator_process_page.php',__FILE__);
     }
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Cron Starting MyCurator', $url);
-    $ch = curl_init();
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 2);  //Set timeout to 1ms so we return and let it run
-
-    curl_exec($ch);
-    curl_close($ch);
+    
+    $response = wp_remote_get($url);
+    if( is_wp_error( $response ) && stripos($response->get_error_message(),'timed out') === false ) {//ignore timeout - we expect it
+        mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Error '.$response->get_error_message()." starting MyCurator",$url);
+    }
+    
     exit();
 
 }

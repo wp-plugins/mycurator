@@ -30,6 +30,7 @@ function mct_ai_process_site(){
         return;
     }
     foreach ($topics as $topic){
+        unset($topic['topic_last_run']);  //Don't pass to cloud
         mct_ai_process_topic($topic);
     } //end for each topic
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'End Site Processing: '.$blog_id.'  ', '');
@@ -71,18 +72,23 @@ function mct_ai_process_topic($topic){
             $feed->link_rss = preg_replace('[&amp;]','&',$feed->link_rss);
             //Process Feed
             $nowdate = new DateTime('now');
-            $thefeed = fetch_feed($feed->link_rss);
-            if (is_wp_error($thefeed)){
-                mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, $thefeed->get_error_message(),$feed->link_rss, $feed->link_name);
-                continue;  //feed error
-            }
-            mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Processing Feed ', $feed->link_name);
             $anynewposts = false;
             $onlyoldposts = true;
-            //Process each item in the rss feed
-            foreach ($thefeed->get_items() as $item){
+            //Build a list of items depending on feed type
+            $items = array();
+            if (stripos($feed->link_rss,'twitter.com') !== false) {
+                $items = mct_ai_twapi($feed, $topic);
+            } else {
+                $items = mct_ai_rssapi($feed, $topic);
+            }
+            if (count($items) == 0) {
+                mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'No Items to Process ', $feed->link_name);
+                continue;
+            }
+            mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Processing Feed ', $feed->link_name);
+            foreach ($items as $item){
                 //See if old post
-                $postdate = new DateTime($item->get_date());
+                $postdate = new DateTime($item->date);
                 $postdate->modify('+'.$lookback.' day');  //add number of days we keep posts read around
                 // $a = $nowdate->diff($postdate,true)->days; for version 5.3 or later only
                 if ($postdate < $nowdate){
@@ -116,8 +122,6 @@ function mct_ai_process_topic($topic){
                 if ($postit) mct_ai_post_entry($topic, $post_arr, $page);  //post entries
 
             } //end for each item
-            $thefeed->__destruct(); 
-            unset($thefeed);
             unset($nowdate);
             //Log if only old posts
             if (!$anynewposts && $onlyoldposts) {
@@ -127,6 +131,94 @@ function mct_ai_process_topic($topic){
     } //end for each source
 }  
         
+function mct_ai_rssapi($feed, $topic){
+    //Process an RSS feed with Simple Pie and return an items object
+    
+    $items = array();
+    $thefeed = fetch_feed($feed->link_rss);
+    if (is_wp_error($thefeed)){
+        mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, $thefeed->get_error_message(),$feed->link_rss, $feed->link_name);
+        //$thefeed->__destruct(); 
+        unset ($thefeed);
+        return $items;  //feed error
+    }
+    foreach ($thefeed->get_items() as $item){
+        $item_obj = new stdClass;
+        $item_obj->type = 'RSS';
+        $item_obj->date = $item->get_date();
+        $item_obj->link = trim($item->get_permalink());
+        $items[] = $item_obj;
+    }
+    $thefeed->__destruct(); 
+    unset($thefeed);
+    unset ($item_obj);
+    return $items;
+}
+
+function mct_ai_twapi($feed, $topic) {
+    //Process Twitter search/follow using 1.1 api
+    
+    global $mct_ai_optarray;
+    $items = array();
+    
+    if (empty($mct_ai_optarray['ai_tw_conk']) || empty($mct_ai_optarray['ai_tw_cons'])){
+        mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, 'Twitter App Not Set in Options',$feed->link_rss, $feed->link_name);
+        return $items;
+    }
+    //Set up twitter api class
+    require_once(plugin_dir_path(__FILE__).'lib/class-mct-tw-api.php');
+    
+    $credentials = array(
+      'consumer_key' => $mct_ai_optarray['ai_tw_conk'],
+      'consumer_secret' => $mct_ai_optarray['ai_tw_cons']
+    );
+    add_filter( 'https_ssl_verify', '__return_false' );
+    add_filter( 'https_local_ssl_verify', '__return_false' );
+    $twitter_api = new mct_tw_Api( $credentials );
+    if ($twitter_api->has_error) {
+        mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, $twitter_api->api_errmsg,$feed->link_rss, $feed->link_name);
+        unset($twitter_api);
+        return $items;  //empty array
+    }
+    //Check type of Twitter feed
+    if (stripos($feed->link_rss,'search') !== false) {
+        //Search
+        $idx = stripos($feed->link_rss,'q=');
+        $qterm = substr($feed->link_rss,$idx+2);
+        $query = 'q='.$qterm.'&result_type=recent';
+        $args = array('type' => 'search/tweets');
+        $reply = $twitter_api->query( $query, $args );
+        $reply = $reply->statuses;
+    } else {
+        //Timeline
+        $idx = stripos($feed->link_rss,'screen_name=');
+        $qterm = substr($feed->link_rss,$idx+12);
+        $query = 'exclude_replies=true&include_rts=true&screen_name='.$qterm;
+        $reply = $twitter_api->query( $query );
+    }
+    //Check errors
+    if ($twitter_api->has_error) {
+        mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, $twitter_api->api_errmsg,$feed->link_rss, $feed->link_name);
+        unset($twitter_api);
+        return $items;  //empty array
+    }
+    //If we have some values, build the $items array
+    if (!empty($reply)) {
+        foreach ($reply as $item) {
+            $item_obj = new stdClass;            
+            $item_obj->type = 'TWITTER';
+            $item_obj->date = $item->created_at;
+            $item_obj->link = '';
+            $item_obj->text = $item->text;
+            $items[] = $item_obj;
+        }
+    }
+    unset ($item_obj);
+    unset ($twitter_api);
+    remove_filter( 'https_ssl_verify', '__return_false' );
+    remove_filter( 'https_local_ssl_verify', '__return_false' );
+    return $items;
+}
 
 function mct_ai_get_page($item, $topic, &$post_arr){
     global $wpdb, $blog_id, $ai_postsread_tbl, $ai_sl_pages_tbl, $mct_ai_stored_page_id, $mct_ai_current_link;
@@ -137,24 +229,26 @@ function mct_ai_get_page($item, $topic, &$post_arr){
     //Return '' if nothing to process because of errors or we've processed it previously
     
     //clean up the link and check if it is from an excluded domain from this topic
-    $ilink = trim($item->get_permalink());
-    //replace &amp; with & - from simple pie sanitization
-    $ilink = preg_replace('[&amp;]','&',$ilink);
-    //If google alert feed, get embedded link
-    $cnt = preg_match('{www\.google\.com/url\?sa=X&q=([^&]*)&ct}',$ilink,$matches);
-    if ($cnt) {
-        $ilink = trim(rawurldecode($matches[1]));
-    }
-    //If google news feed, get embedded link
-    if (stripos($ilink,'news.google.com/news') !== false){
-        $cnt = preg_match('{&url=(.*)$}',$ilink,$matches);
+    $ilink = trim($item->link);
+    if (!empty($ilink)) {
+        //replace &amp; with & - from simple pie sanitization
+        $ilink = preg_replace('[&amp;]','&',$ilink);
+        //If google alert feed, get embedded link
+        $cnt = preg_match('{www\.google\.com/url\?sa=X&q=([^&]*)&ct}',$ilink,$matches);
         if ($cnt) {
             $ilink = trim(rawurldecode($matches[1]));
         }
+        //If google news feed, get embedded link
+        if (stripos($ilink,'news.google.com/news') !== false){
+            $cnt = preg_match('{&url=(.*)$}',$ilink,$matches);
+            if ($cnt) {
+                $ilink = trim(rawurldecode($matches[1]));
+            }
+        }
     }
     //If twitter search feed, get embedded links or return '' if none
-    if (stripos($ilink,'twitter.com') !== false){
-        $desc = $item->get_description();
+    if ($item->type == 'TWITTER'){
+        $desc = $item->text;
         $cnt = preg_match('{http://t.co/([^"\s]*)["\s]?}',$desc,$matches);
         if ($cnt) {
             $elink = $ilink = trim('http://t.co/'.$matches[1]);  //get just first link
@@ -345,7 +439,7 @@ function mct_ai_setPRpage($page, $topic, $post_arr){
 
 
 function mct_ai_post_entry($topic, $post_arr, $page){
-    global $wpdb, $ai_sl_pages_tbl, $blog_id, $user_id, $mct_ai_optarray;
+    global $wpdb, $ai_sl_pages_tbl, $blog_id, $user_ID, $mct_ai_optarray;
     //if filter type just post to blog (cat/tag) or Targets if training
     //else if relevance type and active: post good to blog(cat/tag), unknown to training
     //  else post training for all 
@@ -413,8 +507,11 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     $post_content = apply_filters('mct_ai_postcontent',$post_content);
     
     //Set up the values, not set are defaults
-    //Check for a user, if not we are in cron process so set  user for the site
-    if (!empty($topic_opt['opt_post_user']) && $topic_opt['opt_post_user'] != "Not Set" ) {
+    //Get user for GetIt, if not we are in cron process so set  user for the site
+    if (!empty($post_arr['getit'])) {
+        get_currentuserinfo();
+        $pa = $user_ID;
+    } elseif (!empty($topic_opt['opt_post_user']) && $topic_opt['opt_post_user'] != "Not Set" ) {
         $useris = get_user_by('login',$topic_opt['opt_post_user']);
         if ($useris) {
             $pa = $useris->ID;
@@ -634,16 +731,7 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
         $excerpt = preg_replace('{&&}','<br>',$excerpt, $limit); 
         $excerpt = preg_replace('{&&}','',$excerpt); 
     }
-    if (isset($mct_ai_optarray['ai_no_quotes']) && $mct_ai_optarray['ai_no_quotes'] ) {
-        $post_arr['article'] = '<p id="mct_ai_excerpt">'.$excerpt.'</p>';  //save article
-    } else {
-        if (!empty($mct_ai_optarray['ai_line_brk'])) {
-            $post_arr['article'] = '<blockquote id="mct_ai_excerpt"><p>'.$excerpt.'</p></blockquote>';  //save article
-        } else {
-            $post_arr['article'] = '<blockquote id="mct_ai_excerpt">'.$excerpt.'</blockquote>';  //save article
-        }
-    }
-
+    $post_arr['article'] = mct_ai_setexcerpt($excerpt);
 }
 
 function mct_ai_formatlink($post_arr){

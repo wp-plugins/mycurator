@@ -111,6 +111,7 @@ var photostorage = false;
         if (siteurl == "") return "";
         //Check if google alert page
         if (siteurl.indexOf("google.com/alerts") != -1) return "";
+        if (siteurl.indexOf("talkwalker.com/alerts") != -1) return "";
         // Query 
         var query = 'site:' + siteurl;
         google.feeds.findFeeds(query, findDone);

@@ -40,6 +40,7 @@ function press_it() {
     //Get the Topic
     $sql = "Select * From $ai_topic_tbl Where topic_name = '$tname'";
     $topic = $wpdb->get_row($sql, ARRAY_A);
+    unset($topic['topic_last_run']);  //Don't pass to cloud
     $postit = false;
     $newpost = false;
     if (!empty($topic)){
@@ -219,6 +220,15 @@ jQuery(document).ready(function($) {
         <?php //Get Values from Db
         $sql = "SELECT `topic_name`, `topic_options` FROM $ai_topic_tbl WHERE topic_status != 'Inactive'";
         $topics = $wpdb->get_results($sql, ARRAY_A); 
+        if (! current_user_can('edit_others_posts')) {
+            //Reduce topics to what this author can see
+            $goodtopics= array();
+            foreach ($topics as $key => $topic) { 
+                $topic = mct_ai_get_topic_options($topic);
+                if ($topic['opt_post_user'] == $user_login) $goodtopics[] = $topic;
+            }
+            $topics = $goodtopics;
+        }
         if (empty($topics)) {
             echo "<h2>You must first create a Topic in MyCurator to use the Get It Bookmarklet</h2>";
             echo '<input name="close" id="close" value="Close" type="submit" class="button-primary" onclick="window.close(); return false;">';
@@ -228,10 +238,7 @@ jQuery(document).ready(function($) {
                     <h3 class="hndle"><?php _e('Topics') ?></h3>
                     <div class="inside">
                     <div id="taxonomy-category" class="categorydiv">
-                        <?php $check = "checked"; foreach ($topics as $topic) { 
-                            $topic = mct_ai_get_topic_options($topic);
-                            if (! current_user_can('edit_others_posts') && $topic['opt_post_user'] != $user_login) continue;
-                        ?>
+                        <?php $check = "checked"; foreach ($topics as $topic) { ?>
                         <p><input name="post_category" type="radio" value="<?php echo $topic['topic_name']; ?>" <?php echo $check; ?>  /> <?php echo $topic['topic_name']; ?></p>
                         <?php $check = ""; } ?>
                     </div>

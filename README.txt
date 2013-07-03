@@ -4,7 +4,7 @@ Donate link:
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
 Tested up to: 3.5
-Stable tag: 1.3.3
+Stable tag: 1.3.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -31,7 +31,7 @@ Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 * Get It Bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
 * Special Video curation features to find and embed videos directly into curated posts.
 * MyCurator finds articles in any language, and all posts are in the native language of your site.
-* Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
+* Works with any RSS source of articles including Talkwalker alerts, blogs, news feeds and Twitter searches (follows embedded links).
 * Source It Bookmarklet to easily capture RSS feeds.
 * Selective Auto-Post capability uses AI process to deliver highly targeted, quality articles to your community.
 
@@ -87,6 +87,14 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 1.3.4 =
+* Support for new Twitter API V1.1 allowing Twitter searches and follows to be active again
+* Source It will capture Talkwalker alerts from the RSS page view
+* Line breaks are formatted and saved correctly in the Quick post popup, and copying article text will keep breaks
+* Get It uses ID of user who captures the article, not default for the Topic
+* Fix to readable page to handle $nnn format problems
+* Changes to the background process of MyCurator to stop multiple simultaneous runs by WP-Cron.
 
 = 1.3.3 =
 * Click to Copy any paragraph, table or list into your post from the Saved Page meta box.
