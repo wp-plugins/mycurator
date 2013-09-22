@@ -21,6 +21,7 @@ jQuery(document).ready(function($) {
         jQuery( selector ).hover(function(){
             if ($("#no-element-copy").prop('checked')) return;
             if ($("textarea#content.wp-editor-area").is(":visible")) return; //Doesn't work in Text tab
+            if ($(this).attr('id') == 'idx-entry') return
             $(this).css("background-color","yellow");
             },function(){
             $(this).css("background-color","");
@@ -29,6 +30,7 @@ jQuery(document).ready(function($) {
         jQuery( selector ).click(function(){
             if ($("#no-element-copy").prop('checked')) return;
             if ($("textarea#content.wp-editor-area").is(":visible")) return;
+            if ($(this).attr('id') == 'idx-entry') return
             $(this).css("background-color","");
             var elem = $(this).clone();
             elem.find('img').remove();
@@ -51,6 +53,12 @@ jQuery(document).ready(function($) {
            //tinyMCE.execCommand("mceInsertContent", false, selection);
            //return false;
         });
+        //click on index article
+        $('a#idx-article').click(function() {
+            var tab = $(this).attr('href');
+            $( ".mct-ai-tabs #tabs" ).tabs( "option", "active", tab );
+            return false;
+        })
     });
     //insert image into post
     function myc_insert(){

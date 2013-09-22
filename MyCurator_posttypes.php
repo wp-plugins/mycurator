@@ -223,6 +223,8 @@ function target_ai_custom_col( $column, $post_id ) {
     //Output custom columns for new post type
     global $wpdb, $mct_ai_optarray;
     
+   if (get_post_type($post_id) != 'target_ai') return; 
+    
   $origlinks = get_post_meta($post_id,'mct_sl_origurl',true);
   $newlinks = get_post_meta($post_id,'mct_sl_newurl',true);
   switch ( $column ) {
@@ -237,6 +239,7 @@ function target_ai_custom_col( $column, $post_id ) {
             if (!empty($link_redir)) echo '<strong><a href="'.$link_redir.'" target="_blank">'.$title.'</a></strong>'; else echo  '<strong>'.$title.'</strong>';
         }
         if (isset($_REQUEST['post_status']) && $_REQUEST['post_status'] == 'trash') break;
+        echo '<img src="'.esc_url( admin_url( "images/wpspin_light.gif" ) ).'" alt="" id="saveimg-'.$post_id.'" style="display:none;" />';
         //Set up row action
         echo '<div class="row-actions">';
         echo mct_ai_addtrain();
@@ -308,7 +311,27 @@ function target_ai_custom_col( $column, $post_id ) {
         if ($pos) {
           //Inline thickbox
           echo '<a class="thickbox" href="#TB_inline?&width=800&height=600&inlineId=ai-video-'.$post_id.'" title="Video Iframe">Click for Video</a>';
+          //Get the youtube description
+          //First remove any acitve links
+          $txtstr = preg_replace('{</?a([^>]*)>}','',$content);
+          $pos = preg_match('{<p class="mct_ai_ytdesc">([^<]*)</p>}',$txtstr, $match);
+          if ($pos) {
+              if (strlen($match[1]) == 0 ) break;  //no excerpt
+              $excerpt_length = $mct_ai_optarray['ai_excerpt'];
+              if ($excerpt_length == 0) break;  //Don't want an excerpt
+              //Get the word count specified
+              $excerpt = $match[1];
+              $excerpt = preg_replace('/\s+/', ' ', $excerpt);  //get rid of extra spaces
+              $words = explode(' ', $excerpt, $excerpt_length + 1); 
+              if ( count($words) > $excerpt_length ) {
+                    array_pop($words);
+                    array_push($words, '[...]');
+                    $excerpt = implode(' ', $words);
+              }
+              echo '&nbsp;&nbsp;&nbsp;'.$excerpt;
+          }
           echo '<div id="ai-video-'.$post_id.'" style="max-width: 800px; display: none;">';
+          $content = str_replace(array("\r\n", "\n", "\r"),'<br>',$content);
           echo "<p>$content</p>";
           echo '</div>';
           break;
@@ -351,6 +374,7 @@ function target_ai_restrict_manage_posts() {
                 'show_option_all' => __('Show All Authors' ),
                 'orderby' 	  => 'display_name'
             ) );
+        
 }
 
 function target_ai_filter_post_type_request( $query ) {
@@ -413,7 +437,7 @@ function target_ai_shortcode(){
         $qaiclass = $_GET['ai_class'];
     }
     else {
-        set_transient('mct_ai_lasttopic','');
+        delete_transient('mct_ai_lasttopic','');
     }
     //Set up query with paging
     $q_args = array(
@@ -447,7 +471,8 @@ function target_ai_shortcode(){
     }
     //display filter links
     mct_ai_train_nav($msg);
-    
+    //Notebook Dialog
+    mct_nb_dialog();
     $temp = clone $wp_query;
    
     $wp_query = new WP_Query($q_args);
@@ -469,6 +494,7 @@ function target_ai_shortcode(){
               $link_redir = mct_ai_getlinkredir($post->ID);
               if (!empty($link_redir)) echo '<h2><a href="'.$link_redir.'" target="_blank">'.$title.'</a></h2>'; else echo  '<h2>'.$title.'</h2>';
           }
+          echo '<img src="'.esc_url( admin_url( "images/wpspin_light.gif" ) ).'" alt="" id="saveimg-'.$post->ID.'" style="display:none;" />';
             echo(get_the_date()); echo ('&nbsp;&middot&nbsp;'); 
             edit_post_link( '[Edit]', '', '');
 
@@ -559,6 +585,37 @@ function mct_ai_inlinetb($post_id){
     <?php } ?>
     </div>
 <?php
+}
+
+function mct_nb_dialog() {
+    //Build the notebook dialog box
+    global $user_ID;
+    get_currentuserinfo(); 
+    //Get notebooks
+    $args = array(
+        'numberposts'     => -1,
+        'orderby'         => 'post_title',
+        'order'           => 'DESC',
+        'post_type'       => 'mct_notebk',
+        'post_status'     => 'publish'); 
+    $notebks = get_posts($args);
+    ?>
+    <div id="nb-dialog" class="hide-if-no-js" title="Move to Notebook" style="margin-left:5px">
+        <?php if (!empty($notebks)) { ?>
+        <form>
+            <strong><p id="nb-title"></p></strong>
+            <p><select name="notebk" id="mct-nb-select">
+            <?php foreach ($notebks as $notebk) { 
+            if (! current_user_can('edit_others_posts') && $notebk->post_author != $user_ID) continue;
+            ?>
+            <option value="<?php echo $notebk->ID; ?>" ><?php echo $notebk->post_title; ?></option>
+            <?php  } ?>
+            </select></p><br>Notes:<br>
+            <textarea name="notes" id="mct-nb-notes" rows="5" cols="50" ></textarea>
+        </form>
+        <?php } else { echo "<h2>No Notebooks Created Yet</h2>"; } ?>
+    </div>
+    <?php
 }
 
 function mct_ai_train_nav($msg){
@@ -749,6 +806,7 @@ function mct_ai_addtrain(){
     $imgbad = plugins_url('thumbs_down.png',__FILE__);
     $imgtrash = plugins_url('trash_icon.png', __FILE__);
     $quickstr = '&nbsp; <a class="mct-ai-quick thickbox" id="'.$post->ID.'"href="#TB_inline?&width=550&height=700&inlineId=ai-quick-'.$post->ID.'" title="Quick Post">[Quick]</a>';  
+    $notebkstr = '&nbsp; <a class="mct-ai-notebk hide-if-no-js" id="'.$post->ID.'"href="#postId=ai-notebk-'.$post->ID.'" title="'.$post->post_title.'">[NoteBk]</a>';  
     
     if ($istrain == 'No' && $tgt) {  //Came from Getit
         $retstr .= '&nbsp; <a class="mct-ai-link" id="'.$post->ID.'" href="'.get_delete_post_link($post->ID).'" ><img src="'.$imgtrash.'" ></img></a>';
@@ -766,6 +824,7 @@ function mct_ai_addtrain(){
             $retstr .= '&nbsp; <a class="mct-ai-link" href="'.$multi_uri.'" >[Multi]</a>';
         }
         $retstr .=  $quickstr;
+        $retstr .=  $notebkstr;
         return $retstr;
     }
     
@@ -788,6 +847,7 @@ function mct_ai_addtrain(){
             $retstr .= '&nbsp; <a class="mct-ai-link" id="'.$post->ID.'" href="'.$multi_uri.'" >[Multi]</a>';
         }
         $retstr .=  $quickstr;
+        $retstr .=  $notebkstr;
         return $retstr;
     }
     
@@ -808,6 +868,7 @@ function mct_ai_addtrain(){
             $retstr .= '&nbsp; <a class="mct-ai-link" id="'.$post->ID.'" href="'.$multi_uri.'" >[Multi]</a>';
         }
         $retstr .=  $quickstr;
+        $retstr .=  $notebkstr;
         return $retstr;
     }
     if ($istrain != 'Yes') return '';  //Already trained, so go
@@ -841,50 +902,18 @@ function mct_ai_addtrain(){
             $retstr .= '&nbsp; <a class="mct-ai-link" id="'.$post->ID.'" href="'.$multi_uri.'" >[Multi]</a>';
         }
         $retstr .=  $quickstr;
+        $retstr .=  $notebkstr;
     }
     return $retstr;
 }
 
 function mct_ai_relmeta(){
 
-    //Get training page link
-    $pages = get_pages(array('post_status' => 'publish,private'));
-    foreach ($pages as $page) {
-        if (stripos($page->post_content,"MyCurator_training_page") !== false) {
-            $trainpage = get_page_link($page->ID);
-            break;
-        }
-    }
     
-    $trainpage = '<a href="'.$trainpage.'" />Link to MyCurator Training Page on your site</a>';
     add_meta_box('mct_ai_metabox','Relevance Data','mct_ai_relmetashow','post','normal','low');
-    add_meta_box('mct_ai_slpage','Saved Page >>'.$trainpage,'mct_ai_showpage','post','normal','high');
-    //add the css and js only on the pages where we need it
-    global $post_type, $hook_suffix;
-
-    if($post_type == 'post'){
-        add_action("admin_print_scripts-{$hook_suffix}", 'mct_ai_showpg_queue');
-
-    }
+    
 }
 
-function mct_ai_showpg_queue(){
-    //Queue tab stuff
-    wp_enqueue_script('jquery-ui-tabs');
-    $style = plugins_url('css/MyCurator.css',__FILE__);
-    wp_register_style('myctabs',$style,array(),'1.0.0');
-    wp_enqueue_style('myctabs');
-    //Dialog and ajax
-    $jsdir = plugins_url('js/MyCurator_showpg.js',__FILE__);
-    wp_enqueue_script('mct_ai_showpg',$jsdir,array('jquery','jquery-ui-dialog'),'1.0.2');
-    $includes_url = includes_url();
-    $protocol = isset($_SERVER["HTTPS"]) ? 'https://' : 'http://';
-    $params = array(
-        'ajaxurl' => admin_url('admin-ajax.php',$protocol)
-    );
-    wp_localize_script('mct_ai_showpg', 'mct_ai_showpg', $params);
-    wp_enqueue_style('jquery-ui-dialog');
-}
 function mct_ai_relmetatarget(){
     add_meta_box('mct_ai_metabox','Relevance Data','mct_ai_relmetashow','target_ai','normal','low');
 }
@@ -900,118 +929,6 @@ function mct_ai_relmetashow($post){
     }
 }
 
-function mct_ai_showpage($post){
-    //Display the saved page in a  meta box for use in curating post
-    global $wp_query, $post;
-    //Get any Multi Posts
-    $max = 1;
-    $posts = array($post->ID);
-    $topics = wp_get_object_terms($post->ID,'topic',array('fields' => 'slugs'));
-    if (empty($topics)) return;  //not a MyCurator post
-    $term = wp_get_object_terms($post->ID,'ai_class',array('fields' => 'names'));
-    if ($term[0] == 'multi') {
-        $args = array(
-            'post_type'       => 'target_ai',
-            'numberposts' => -1,
-            'topic' => $topics[0],
-            'ai_class'        => 'multi'
-        );
-        $multis = get_posts($args);
-        foreach ($multis as $multi){
-            $posts[] = $multi->ID;
-            $max++;
-        }
-    }
-    //Set up dialog box
-    ?>
-    <div id="ai-dialog" title="Insert Image" style="margin-left:5px">
-        <p>Align/Size for Insert Into Post Only
-        <?php  echo '<img src="'.esc_url( admin_url( "images/wpspin_light.gif" ) ).'" alt="" id="ai-saving" style="display:none;" />'; ?></p>
-        <form>
-            <p><label for="ai_img_align"><strong>Alignment</strong></label></p>
-            <input name="ai_img_align" type="radio" id="ai_img_align" value="left" checked /> Left&nbsp;&nbsp;
-            <input name="ai_img_align" type="radio" id="ai_img_align" value="right"  /> Right&nbsp;&nbsp;
-            <input name="ai_img_align" type="radio" id="ai_img_align" value="center"  /> Center&nbsp;&nbsp;
-            <input name="ai_img_align" type="radio" id="ai_img_align" value="none"  /> None
-            <p><label for="ai_img_size"><strong>Size</strong></label></p>
-            <input name="ai_img_size" type="radio" id="ai_img_size" value="thumbnail" checked  /> Thumbnail&nbsp;&nbsp;
-            <input name="ai_img_size" type="radio" id="ai_img_size" value="medium"  /> Medium&nbsp;&nbsp;
-            <input name="ai_img_size" type="radio" id="ai_img_size" value="large"  /> Large&nbsp;&nbsp;
-            <input name="ai_img_size" type="radio" id="ai_img_size" value="full"  /> Full Size
-            <p><label for="ai_title_alt"><strong>Title/Alt Tags</strong></label></p>
-            <input name="ai_title_alt" type="text" id="ai_title_alt" size ="50" value="<?php echo $post->post_title; ?>" >
-            <input name="ai_post_id" type="hidden" id="ai_post_id" value="<?php echo $post->ID; ?>" >
-            <?php wp_nonce_field("mct_ai_showpg",'showpg_nonce', false);  ?>
-        </form>
-    </div>
-    <div class="mct-ai-tabs">
-    <div id="tabs">
-        <ul>
-        <?php
-        for ($i=1;$i<=$max;$i++){
-            echo '<li><a href="#tabs-'.$i.'">Article '.$i.'</a></li>';
-        } 
-?>
-        </ul>
-        <?php
-    //Loop on all Articles
-        $i = 1;
-    foreach ($posts as $postid){
-        //Get saved page id
-        $page = mct_ai_getslpage($postid);
-        if (empty($page)) return;
-
-        //pull out the article text
-        $article = mct_ai_getslarticle($page);
-        //Title text
-        $cnt = preg_match('{<title>([^<]*)</title>}i',$page,$matches);
-        if ($cnt) {
-            $title = $matches[1];
-            $title = wp_strip_all_tags($title, true);
-        }
-        // Get original URL
-        $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
-        $origlink = $matches[1].'> '.$matches[2].'</a>';
-        //pull out any side images
-        $images = '';
-        $pos = stripos($page,'<div id="box_media">');
-        if ($pos){
-            $images = substr($page,$pos);
-            $pos = stripos($images,'</div>');
-            if ($pos > 20) {
-                $images = substr($images,0,$pos+6);
-            } else {
-                $images = '';
-            }
-        }
-        //Write out tab div
-        echo '<div id="tabs-'.$i.'">';
-        if ($i == 2) {
-            echo '<input name="mct_ai_ismulti" type="hidden" value="1" />';  //Set this so we know we are publishing a multi post
-        }
-        // click copy notice
-        ?>
-        <div id="ai-showpg-msg" style="float:right; width: 220px; border:1px solid; padding:2px;">
-            Click on Highlighted Text or Image to Insert into Post at Cursor - Turn off Click-Copy&nbsp;
-            <input name="usecopy" id="no-element-copy" type="checkbox" >
-        </div>
-        <?php
-        echo '<p><strong>'.$title.'</strong></p>';
-        echo '<p>'.$origlink.'</p>';
-        echo $article;
-        if ($images){
-            //quick style
-            echo "<style> #box_media {padding: 5px;} #box_media #side_image {padding: 5px;} </style>";
-            echo "<h3>Images</h3>".$images;
-        } 
-        echo '</div>';
-        $i++;
-    }
-    ?>    
-    </div>
-    </div>
-    <?php
-}
 
 function mct_ai_del_multi($post){
     //Remove multi posts if publish
@@ -1133,7 +1050,7 @@ function bwc_create_news(){
 
     $msg = '';
     $follow = false;
-    $feed_type = true;
+    $feed_type = 'G';
     //Get Link Categories for dropdown
     $cats = array (
         'orderby' => 'name',
@@ -1158,15 +1075,11 @@ function bwc_create_news(){
             'link_category' => strval(absint($_POST['link_category'])),
             'newlinkcat' => trim(sanitize_text_field($_POST['newlinkcat']))
         );
-        if ($_POST['ftype'] == 'G') {
-            $feed_type = true;
-        } else {
-            $feed_type = false;
-        }
+        $feed_type = $_POST['ftype'];
         //Get the keywords and set the url
         if (strpos($args['keywords'],'@')!== false) {
-            if ($feed_type) {
-                $msg = "Cannot use Twitter Username in Google News feed.  ";
+            if ($feed_type != 'T') {
+                $msg = "Can use Twitter Username only in Twitter Search.  ";
             } else {
                 if (preg_match('/^@([a-z0-9_]{1,15})$/i',$args['keywords'],$match)) {
                     $newsterm = $match[1];
@@ -1178,17 +1091,20 @@ function bwc_create_news(){
         } else {
             $newsterm = urlencode($args['keywords']); 
         }
-        if ($feed_type) {
+        if ($feed_type == 'G') {
             $args['rss-url'] = 'http://news.google.com/news?hl=en&gl=us&q='.$newsterm.'&um=1&ie=UTF-8&output=rss'; //Google news feed
             $args['save-url'] = 'http://news.google.com/';
-        } else {
+        } elseif ($feed_type == 'T') {
             if ($follow) {
                 $args['rss-url'] = 'http://api.twitter.com/1/statuses/user_timeline.rss?screen_name='.$newsterm;
             } else {
                 $args['rss-url'] = 'http://search.twitter.com/search.rss?q='.$newsterm;  //twitter search string
             }
             $args['save-url'] = 'http://search.twitter.com/';
-        }
+        } elseif ($feed_type == 'Y') {
+            $args['rss-url'] = 'http://www.youtube.com/rss/search/'.$newsterm.'.rss'; //YouTube Search string
+            $args['save-url'] = 'http://www.youtube.com/';
+        } else $msg = 'Invalid Type Entered';
         //Validate args
         if (strlen($args['feed_name']) == 0) $msg .= 'Must have a Feed Name. ';
         if (strlen($args['keywords']) == 0) $msg .= 'Keyword may not be blank. ';
@@ -1197,10 +1113,12 @@ function bwc_create_news(){
             $msgclass = 'error';
             $cats['selected'] = $args['link_category']; //Save chosen cat
         } else {
-            if ($feed_type) {
+            if ($feed_type == 'G') {
                 $msg = 'Google News Feed Created';
-            } else {
+            } elseif ($feed_type == 'T') {
                 $msg = 'Twitter Search Created';
+            } elseif ($feed_type == 'Y') {
+                $msg = 'YouTube Search Created';
             }
             $msgclass = 'updated';
             $args = array(
@@ -1216,26 +1134,31 @@ function bwc_create_news(){
     ?>
     <div class='wrap'>
     <?php screen_icon('link-manager'); ?>
-    <h2>Create Google News Feed or Twitter Search</h2>
+    <h2>Create Google News Feed, Twitter Search or YouTube Search</h2>
     <?php 
     if (!empty($msg)){ ?>
        <div id="message" class="<?php echo $msgclass; ?>" ><p><strong><?php echo $msg ; ?></strong></p></div>
     <?php } ?>    
-    <p>Use this option to create a google news feed or twitter search that will be placed into your links for the link category you choose.  
+    <p>Use this option to create a google news feed, twitter search or YouTube search that will be placed into your links for the link category you choose.  
         You can also follow a twitter user by choosing Twitter Search Feed and entering their @username in the Keywords.
         You can then use this feed in any of your MyCurator Topics by including the link category as a source.</p>
+    <p>YouTube searches are best used with a Video Type Topic where the video will be pasted into the post.</p>
     <p>To use Twitter Search or Follow a Twitter User you must set up a Twitter App in the Twitter Tab under Options</p>
     <p><strong>All fields are required except a New Link Category</strong></p>
     <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] ); ?>"> 
         <table class="form-table" >
             <tr>
                 <th scope="row">Google News Feed? </th>
-                <td><input name="ftype" type="radio" value="G" <?php if ($feed_type) echo 'checked="checked"'; ?> /></td>
+                <td><input name="ftype" type="radio" value="G" <?php if ($feed_type == 'G') echo 'checked="checked"'; ?> /></td>
             </tr>
             <tr>
                 <th scope="row">Twitter Search Feed? </th>
-                <td><input name="ftype" type="radio" value="N" <?php if (!$feed_type) echo 'checked="checked"'; ?> /></td>    
-            </tr>  
+                <td><input name="ftype" type="radio" value="T" <?php if ($feed_type == 'T') echo 'checked="checked"'; ?> /></td>    
+            </tr> 
+            <tr>
+                <th scope="row">YouTube Search Feed? </th>
+                <td><input name="ftype" type="radio" value="Y" <?php if ($feed_type == 'Y') echo 'checked="checked"'; ?> /></td>    
+            </tr> 
             <tr>
                 <th scope="row">Feed Name</th>
                 <td><input name="feed_name" type="input" id="aname" size="50" maxlength="200" value="<?php echo $args['feed_name']; ?>" /></td>    
@@ -1465,11 +1388,14 @@ if (!class_exists('mct_ai_Custom_Bulk_Action')) {
                         if (!empty($message)){
                             $_SERVER['REQUEST_URI'] = remove_query_arg( array('postedlive','posteddraft', 'trainedgood','trainedbad','setmulti','setauthor', 'ids'), $_SERVER['REQUEST_URI'] );
                         }
-                        if ($pagenow == 'edit.php' && $post_type == 'target_ai' && empty($mct_ai_optarray['ai_no_fmthelp'])){
-                           $message = '<a class="thickbox" href="#TB_inline?&width=550&height=450&inlineId=ai-format-help" title="Training Posts Formatting">Click if you have Format Problems</a>';
-                           $message = $message.mct_ai_inline_fmthelp();
-                           echo "<div class=\"updated\">{$message}</div>";
-                        }                        
+                        if ($pagenow == 'edit.php' && $post_type == 'target_ai') {
+                            mct_nb_dialog();
+                            if (empty($mct_ai_optarray['ai_no_fmthelp'])){
+                               $message = '<a class="thickbox" href="#TB_inline?&width=550&height=450&inlineId=ai-format-help" title="Training Posts Formatting">Click if you have Format Problems</a>';
+                               $message = $message.mct_ai_inline_fmthelp();
+                               echo "<div class=\"updated\">{$message}</div>";
+                            } 
+                        }
 		}
 		
 		function perform_export($post_id) {
@@ -1487,7 +1413,7 @@ function mct_ai_trainscript($page) {
     global $mct_ai_optarray;
     
     $jsdir = plugins_url('js/MyCurator_training.js',__FILE__);
-    wp_enqueue_script('mct_ai_train',$jsdir,array('jquery','thickbox'),'1.0.2');
+    wp_enqueue_script('mct_ai_train',$jsdir,array('jquery','thickbox','jquery-ui-dialog'),'1.0.3');
     $includes_url = includes_url();
     $protocol = isset($_SERVER["HTTPS"]) ? 'https://' : 'http://';
     $params = array(
@@ -1504,6 +1430,7 @@ function mct_ai_trainscript($page) {
 function mct_ai_trainstyle(){
     //Enque training styles
     wp_enqueue_style('thickbox');
+    wp_enqueue_style('wp-jquery-ui-dialog');
     $style = plugins_url('css/MyCurator_train.css',__FILE__);
     wp_register_style('myctrain',$style,array(),'1.0.2');
     wp_enqueue_style('myctrain');
