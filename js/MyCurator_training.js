@@ -13,7 +13,9 @@ jQuery(document).ready(function($) {
         $('<option>').val('multi').text('Set as Multi').appendTo("select[name='action']");
         $('<option>').val('multi').text('Set as Multi').appendTo("select[name='action2']");      
         $('<option>').val('author').text('Change Author').appendTo("select[name='action']");
-        $('<option>').val('author').text('Change Author').appendTo("select[name='action2']");  
+        $('<option>').val('author').text('Change Author').appendTo("select[name='action2']");
+        //Remove published from top
+        $('ul.subsubsub li.publish').css('display','none');
         //Set up change author fields
         $('#doaction, #doaction2').click(function(e){
             var n = $(this).attr('id').substr(2);
@@ -91,7 +93,7 @@ jQuery(document).ready(function($) {
                         break;
                     case 'bad':
                     case 'delete':
-                        remove_item(remove);
+                        remove_item(remove,true);
                         break;
                     case 'move':
                     case 'draft':
@@ -129,8 +131,28 @@ jQuery(document).ready(function($) {
         });
         
         return false;
+    });    //End train tags click
+    //Notebook Dialog
+    $("#nb-dialog").dialog({ //Set up dialog box for images
+        autoOpen : false, 
+        dialogClass  : 'wp-dialog', 
+        modal : true, 
+        width: 500,
+        closeOnEscape: true,
+        buttons: {
+        "Move to Notebook": function(){myc_nb_move();$('#mct-nb-notes').val('');$( this ).dialog( "close" );  },
+        Cancel: function() {$('#mct-nb-notes').val('');$( this ).dialog( "close" ); }}
     });
-    //End train tags click
+    //Click on notebook link
+    $(".mct-ai-notebk").click(function(){
+        var link = this;
+        var postid = $(link).attr('id');
+        var title = $(link).attr('title');
+        $('p#nb-title').text(title);
+        nb_post_id = postid;
+        $("#nb-dialog").dialog("open");
+        return false;
+    });
 
 });
     //Quick edit
@@ -160,13 +182,21 @@ jQuery(document).ready(function($) {
         });
     }
     
-    function remove_item(post) {
+    function remove_item(post,trash) {
         if (mct_ai_train.page_type == 'admin') {
             var p2 = jQuery('tr.post-'+post);
             p2.css('background-color','#fb6c6c');
             p2.slideUp(500,function() {
                  p2.remove();
             });
+            //update all
+            var cnt = parseInt(jQuery('ul.subsubsub li.all span.count').text().substring(1))-1; //strip off leading ( for parsint
+            jQuery('ul.subsubsub li.all span.count').text('('+cnt.toString()+')');
+            //update trash if not undefined
+            if (trash !== undefined){
+                var cnt = parseInt(jQuery('ul.subsubsub li.trash span.count').text().substring(1))+1; //strip off leading ( for parsint
+                jQuery('ul.subsubsub li.trash span.count').text('('+cnt.toString()+')');
+            }
         } else {
             var p2 = jQuery('div.post-'+post);
             p2.css('background-color','#fb6c6c');
@@ -174,5 +204,34 @@ jQuery(document).ready(function($) {
               p2.remove();
             });
         }
+    }
+    
+    function myc_nb_move() {
+        //Move training post to Notebook
+        //Use training ajax
+        //post in nb_post_id
+        
+        var new_note = jQuery('#mct-nb-notes').attr('value');
+        var notebk = jQuery('select#mct-nb-select option:selected').val();
+        if (!notebk) return false;
+        var nonce = jQuery('input#_wpnonce').attr('value');
+        var qstr = "notebk="+nb_post_id+"&_wpnonce="+nonce;
+        var data = { qargs: qstr,
+              nonce: nonce,
+              note: new_note,
+              nbook: notebk,
+              action: 'mct_ai_train_ajax'};
+        jQuery('#saveimg-'+nb_post_id).css('display', 'inline');
+        jQuery.post(mct_ai_train.ajaxurl, data, function (data) {
+            var status = jQuery(data).find('response_data').text();
+            jQuery('#saveimg-'+nb_post_id).css('display', 'none');
+            if (status == 'Ok') {
+              remove_item(nb_post_id);
+             
+            } else {
+                alert(status);
+            }
+        return false;
+        });
     }
    

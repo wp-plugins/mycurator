@@ -65,6 +65,8 @@ function mct_sl_getsavedpage($sl_id){
 
 function mct_sl_deletefile($post_id){
     //Hook to remove saved pages from db when post is deleted
+    //Also remove images linked to a post if from MyCurator
+    //Also handle delete of Notebooks (notepages will have a saved page)
     global $wpdb, $ai_sl_pages_tbl, $mct_ai_optarray;
     // Get the links from the meta data, allow for more than one
     $newlinks = get_post_meta($post_id,'mct_sl_newurl',true);
@@ -72,17 +74,34 @@ function mct_sl_deletefile($post_id){
         $sql = "DELETE FROM $ai_sl_pages_tbl WHERE sl_post_id = $post_id";
         $del = $wpdb->query($sql);
         //Delete image if being saved
-        $thumb_id = get_post_meta($post_id, '_thumbnail_id',true);  //Post Thumbnail
-        if ($thumb_id) wp_delete_attachment($thumb_id,true);
-        //Now try inserted image
-        $ids = $wpdb->get_col("SELECT ID FROM {$wpdb->posts} WHERE post_parent = $post_id AND post_type = 'attachment'");
-        if (!empty($ids)) {
-            foreach ( $ids as $id )
-                    wp_delete_attachment($id);
+        mct_sl_deleteimage($post_id);
+    }
+    //Check for Notebook post type and delete all pages
+    if (get_post_type($post_id) == 'mct_notebk'){
+        $args = array(
+        'numberposts'     => -1,
+        'post_type'       => 'mct_notepg',
+        'post_parent'     => $post_id); 
+        $notepgs = get_posts($args);
+        foreach ($notepgs as $notepg) {
+            wp_delete_post($notepg->ID,true);
         }
     }
 }
 
+function mct_sl_deleteimage($post_id){
+    //Delete image attachments and featured images from a post
+    global $wpdb;
+    
+    $thumb_id = get_post_meta($post_id, '_thumbnail_id',true);  //Post Thumbnail
+    if ($thumb_id) wp_delete_attachment($thumb_id,true);
+    //Now try inserted image
+    $ids = $wpdb->get_col("SELECT ID FROM {$wpdb->posts} WHERE post_parent = $post_id AND post_type = 'attachment'");
+    if (!empty($ids)) {
+        foreach ( $ids as $id )
+                wp_delete_attachment($id);
+    }
+}
 function mct_sl_linkmeta(){
     // Set up meta box for link replacement data
     add_meta_box('mct_sl_metabox','Link Replacement for MyCurator','mct_sl_linkmetashow','post','normal','low');

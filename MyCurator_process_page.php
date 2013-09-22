@@ -31,15 +31,15 @@ if (is_multisite()){
 }
 //Assign a process id
 $proc_id = strval(rand(1,10000));
-//Get the process queue if available
 $proc_q = array();
-$proc_q = get_option('mct_ai_proc_queue');
-if (!empty($proc_q)) {
-    if (get_transient('mct_ai_proc_queue') === false) {  //is proc queue stale?
-        delete_option('mct_ai_proc_queue');  //restart as proc queue is stale
-        $proc_q = array(); //empty proc_q
-    }
+//Backwards check for old process queue option
+if (get_option('mct_ai_proc_queue') != false) {
+    //Get rid of old option and transient
+    delete_option('mct_ai_proc_queue'); 
+    delete_transient('mct_ai_proc_queue'); 
 }
+//Get the proc queue
+$proc_q = get_transient('mct_ai_proc_queue');
 if (empty($proc_q)) {
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Start Process: '.$proc_id.'  ', ' ');
 } else {
@@ -62,9 +62,7 @@ if (empty($proc_q)) {
     foreach ($topics as $topic){
         $proc_q[] = trim(strval($topic['topic_id']));
     }
-
-    update_option('mct_ai_proc_queue', $proc_q);  //set the process queue option
-    set_transient('mct_ai_proc_queue','proc queue timer',60*60*36);  //Set the 'stale' timer
+    set_transient('mct_ai_proc_queue',$proc_q,60*60*36);  //Set the 'stale' timer
     //Start new process to do the work
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'New Queue, End Process: '.$proc_id.'  ', implode(',',$proc_q));
     mct_ai_new_proc();
@@ -96,11 +94,9 @@ if ($wpdb->num_rows){  //may have been deleted since we set up the queue
 //All done, 
 if (empty($proc_q)){
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'End Site Processing: '.$proc_id.'  ', ' ');
-    delete_option('mct_ai_proc_queue');  //no more work
-    delete_transient('mct_ai_proc_queue'); 
+    delete_transient('mct_ai_proc_queue'); //no more work
 } else {
-    update_option('mct_ai_proc_queue',$proc_q);
-    set_transient('mct_ai_proc_queue','proc queue timer',60*60*36);//Set the 'stale' timer
+    set_transient('mct_ai_proc_queue',$proc_q,60*60*36);//Set the 'stale' timer
     mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'End Process: '.$proc_id.'  ', implode(',',$proc_q));
     mct_ai_new_proc(); //Start the next process 
 }

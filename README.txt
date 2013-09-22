@@ -3,35 +3,32 @@ Contributors: mtilly
 Donate link: 
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
-Tested up to: 3.5
-Stable tag: 1.3.4
+Tested up to: 3.6
+Stable tag: 2.0.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator plugin is content curation software that makes it easy to create fresh content for your WordPress site.
+MyCurator Makes it Easier to Build Quality Content for Your Site, from Content Curation to Writing Original Articles.
 
 == Description ==
 
-MyCurator is professional content curation software for WordPress sites. 
-MyCurator works tirelessly in the background delivering a pipeline of content to you throughout the day, ready for your curation efforts. 
-Integrated into WordPress, each article found by MyCurator includes the full text and all images as well as the attribution to the original page.  
-Just click on quotes and images to insert them into your curated post, then add your insights 
-and comments, quickly creating fresh content for your site.  Regular content curation can help build your article writing skills too.
+MyCurator works tirelessly in the background delivering a pipeline of interesting, usable content to you throughout the day.  
+Our Get It Bookmarklet lets you capture content as you browse the web.  Quickly curate this content onto your site with great curation tools.
+Use our Notebooks to save the best articles and posts you find for use in your original articles or building complex curated posts.
 
 Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 
 * Pro-actively finds the content you want, no need to search every time, inspiring you to regularly curate new posts.
-* Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk curation tools.
-* Customize to your specific niche by choosing what sources to read and what to look for in each article
+* The full text, attribution link and all images for each article are available in the WordPress post editor, just click on a paragraph, list, table or image and its inserted into your blog article immediately.
+* Notebooks let you research ideas and save related articles, both from MyCurator's automated discovery and your web explorations.
+* Notebooks are like Evernote, only integrated into your WordPress Editor.
+* Customize article discovery to your specific niche by choosing what sources to read and what to look for in each article
 * For even more content accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
-* The full text and all images for each article are available as a meta box in the WordPress post editor.
-* Curated content writing is quick, just click on a paragraph, list, table or image and its inserted into your blog article immediately.
-* Attribution to the original article is automatically inserted into the curated post.
-* Curated posts have access to SEO, theme options and other plugins of your environment just as with a regular post
 * Get It Bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
 * Special Video curation features to find and embed videos directly into curated posts.
+* Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk curation tools.
 * MyCurator finds articles in any language, and all posts are in the native language of your site.
-* Works with any RSS source of articles including Talkwalker alerts, blogs, news feeds and Twitter searches (follows embedded links).
+* Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
 * Source It Bookmarklet to easily capture RSS feeds.
 * Selective Auto-Post capability uses AI process to deliver highly targeted, quality articles to your community.
 
@@ -88,12 +85,23 @@ cloud services.
 
 == Changelog ==
 
+= 2.0.0 =
+* Notebooks let you save any articles found by MyCurator for future use in curated posts or writing articles.
+* Create a YouTube search directly from MyCurator
+* Save YouTube video description along with embedded video for Video Topic
+* Get It has a new tab to save articles to your Notebooks
+* Support for changes to Google Alerts RSS delivery
+* Index page for saved page meta box in editor if more than 5 articles
+* Excluded keyword entry is now a text box
+* Background processing updated to restart with last feed if ended early
+* Training Posts All and Trash counts updated as you work with items
+
 = 1.3.4 =
-* Support for new Twitter API V1.1 allowing Twitter searches and follows to be active again
-* Source It will capture Talkwalker alerts from the RSS page view
-* Line breaks are formatted and saved correctly in the Quick post popup, and copying article text will keep breaks
-* Get It uses ID of user who captures the article, not default for the Topic
-* Fix to readable page to handle $nnn format problems
+* Support for new Twitter API V1.1 allowing Twitter searches and follows to be active again.
+* Source It will capture Talkwalker alerts from the RSS page view.
+* Line breaks are formatted and saved correctly in the Quick post popup, and copying article text will keep breaks.
+* Get It uses ID of user who captures the article, not default for the Topic.
+* Fix to readable page to handle $nnn format problems.
 * Changes to the background process of MyCurator to stop multiple simultaneous runs by WP-Cron.
 
 = 1.3.3 =

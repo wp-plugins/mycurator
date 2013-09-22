@@ -256,6 +256,79 @@ function mct_ai_curl_get_file_contents($URL) {
     return FALSE;
 }
 
+function mct_ai_build_link($url, $title){
+    //Build a well formatted link string for Getit, Notebooks
+    //local_proc doesn't use this (maybe refactor in future)
+    global $mct_ai_optarray;
+    
+    $hoststr = parse_url($url,PHP_URL_HOST);
+    $intro = "Click here to view original web page at ".$hoststr;
+    $post_arr['title'] = $title;
+    if (!empty($mct_ai_optarray['ai_new_tab'])) {
+        $post_arr['orig_link'] = '<a href="'.$url.'" target="_blank">'.$intro.'</a>';
+    } else {
+        $post_arr['orig_link'] = '<a href="'.$url.'" >'.$intro.'</a>';
+    }
+    $post_arr['orig_link'] = mct_ai_formatlink($post_arr);
+    $content = '<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>';
+    if (empty($mct_ai_optarray['ai_orig_text'])) {
+        $content = str_replace("Click here to view original web page at ",$mct_ai_optarray['ai_orig_text'],$content); //remove space too
+    } else {
+        $content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$content);  // leave space
+    }
+    return $content;
+}
+
+function mct_ai_formatlink($post_arr){
+    //Format link based on options (used by build link and local_proc
+    global $mct_ai_optarray;
+    
+    $link = $post_arr['orig_link'];
+    $title = $post_arr['title'];
+    $intro = "Click here to view original web page at ";
+    $cnt = preg_match('{^(<a[^>]*>)([^<]*)(</a>)$}',$link,$matches);
+    $anchor = str_replace($intro,"",$matches[2]);
+    
+    if (isset($mct_ai_optarray['ai_post_title']) && $mct_ai_optarray['ai_post_title'] ){
+        $anchor = $title;
+    }
+    if (isset($mct_ai_optarray['ai_no_anchor']) && $mct_ai_optarray['ai_no_anchor'] ){
+        return $intro.$matches[1].$anchor."</a>";
+    } else {
+        return $matches[1].$intro.$anchor."</a>";
+    }
+    return $link;
+}
+
+
+function mct_ai_getplan(){
+    //Get the plan from cloud service
+    global $mct_ai_optarray;
+    if (empty($mct_ai_optarray['ai_cloud_token'])) return;
+    if (get_transient('mct_ai_getplan') == 'checked') return;  //In case we are doing a lot of work
+    include_once ('MyCurator_local_proc.php');
+    
+    $topic = array('topic_id' => "0"); //need a topic for cloud call
+    $response = mct_ai_callcloud("GetPlan",$topic,"");
+    if ($response == NULL) return false; //error already logged
+    if (!empty($response->LOG)) {
+        $log = get_object_vars($response->LOG);
+        //Log the error
+        mct_ai_log($log['logs_topic'], $log['logs_type'], $log['logs_msg'], $log['logs_url']);
+        //If Invalid Token, or Expired set plan as error, else return (and leave whatever plan we have)
+        if (strpos($log['logs_msg'],"Token") !== false || strpos($log['logs_msg'],"Expired") !== false) {
+            $mct_ai_optarray['ai_plan'] = serialize(array('name'=> $log['logs_msg'], 'max' => -1  ));
+        } else {
+            return false;    
+        }
+    } else { //No error, so set plan 
+        $mct_ai_optarray['ai_plan'] = serialize(get_object_vars($response->planarr));
+    }
+    update_option('mct_ai_options',$mct_ai_optarray);
+    set_transient('mct_ai_getplan', 'checked',300);
+}
+
+
 function mct_ai_train_ajax() {
     //Handle ajax requests from training pages/posts
     global $mct_ai_optarray;
@@ -482,6 +555,22 @@ function mct_ai_train_ajax() {
         wp_update_post($newpost);
         //Now move it out of training
         mct_ai_traintoblog($pid, $type);
+        $response->add(array('data' => 'Ok'));
+        $response->send();
+        exit();
+    }
+    //Move to Notebook
+    if (!empty($args['notebk'])){ 
+        $pid = intval($args['notebk']);
+        if (!check_ajax_referer('bulk-posts','nonce', false)) {
+            $response->add(array('data' => 'Error - Bad Nonce'));
+            $response->send();
+            exit();
+        }
+        $note = str_replace(PHP_EOL,'<br>',$_POST['note']);
+        $note = wp_kses_post($note);
+        $notebk_id = intval($_POST['nbook']);
+        mct_nb_traintonotepg($pid, $notebk_id, $note);
         $response->add(array('data' => 'Ok'));
         $response->send();
         exit();

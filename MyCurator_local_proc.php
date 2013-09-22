@@ -40,34 +40,65 @@ function mct_ai_process_topic($topic){
     //Process all feeds and items within a topic
     //$topic is an array with each field from the topics file
     global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
-    
-    $lookback = (empty($mct_ai_optarray['ai_lookback_days'])) ? 7 : $mct_ai_optarray['ai_lookback_days'];
-    $farback = $lookback + 60;
-    
-    mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Start Processing Topic ', '');
-    //Set up the topic info for the cloud service
-    if (!mct_ai_cloudtopic($topic)) return; 
+
     //For this topic, get the sources
     $sources = array_map('trim',explode(',',$topic['topic_sources']));
     if (empty($sources)){
         return;  //Nothing to read
     }
+    //Get the restart transient which is set if last topic:source:feed didn't complete
+    $restart = get_transient('mct_ai_last_feed');
+    if ($restart) {
+        $restart_arr = explode(':',$restart);
+        if ($topic['topic_id'] != $restart_arr[0]) {
+            //not this topic, so skip it
+            return;
+        } elseif (!in_array($restart_arr[1],$sources)) {
+            //Source not in list, sources have changed for this topic, delete the transient & reset variables & go on
+            $restart = false;
+            $restart_arr = array();
+            delete_transient('mct_ai_last_feed');
+        }
+    }
     
+    $lookback = (empty($mct_ai_optarray['ai_lookback_days'])) ? 7 : $mct_ai_optarray['ai_lookback_days'];
+    $farback = $lookback + 60;
+    
+    //Set up the topic info for the cloud service
+    if (!mct_ai_cloudtopic($topic)) return; 
+    //log that we are starting
+    mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Start Processing Topic ', '');
+    //read the sources
     foreach ($sources as $source){
+        if ($restart && $restart_arr[1] != $source ) continue;  //Not the restart source, so try another
+        
         //For this source, get each feed
         $args = array(
             'category' => $source,
+            'orderby' => 'link_id',
             'hide_invisible' => false
         );
         $feeds = get_bookmarks($args);
         if (empty($feeds)){
             continue;
         }
+        //Process the feeds
         foreach ($feeds as $feed){
+            //Check for restart with this feed
+            if ($restart) {
+                if ($feed->link_id != $restart_arr[2]) continue;
+                //Ok, this is the feed, so lets continue from here, 
+                //reset the variables and log that we are restarting
+                $restart = false;
+                $restart_arr = array();
+                mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Restarting with Feed ', $feed->link_name);
+            }
             if (empty($feed->link_rss)){
                 mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, 'No feed rss link for feed: '.$feed->link_name, $feed->link_rss, $feed->link_name);
                 continue;  //no feed in link
             }
+            //Set the restart transient for 36 hours as we process this feed
+            set_transient('mct_ai_last_feed',strval($topic['topic_id']).':'.strval($source).':'.strval($feed->link_id),60*60*36);
             //replace &amp; with & - from db sanitization
             $feed->link_rss = preg_replace('[&amp;]','&',$feed->link_rss);
             //Process Feed
@@ -128,6 +159,8 @@ function mct_ai_process_topic($topic){
                 mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'All posts older than 60 days',$feed->link_name);
             }
         }  //end for each feed
+        //Delete the restart transient
+        delete_transient('mct_ai_last_feed');
     } //end for each source
 }  
         
@@ -234,7 +267,7 @@ function mct_ai_get_page($item, $topic, &$post_arr){
         //replace &amp; with & - from simple pie sanitization
         $ilink = preg_replace('[&amp;]','&',$ilink);
         //If google alert feed, get embedded link
-        $cnt = preg_match('{www\.google\.com/url\?sa=X&q=([^&]*)&ct}',$ilink,$matches);
+        $cnt = preg_match('{www\.google\.com/url\?q=([^&]*)&ct}',$ilink,$matches);
         if ($cnt) {
             $ilink = trim(rawurldecode($matches[1]));
         }
@@ -377,7 +410,7 @@ function mct_ai_callcloud($type,$topic,$postvals){
     if (isset($postvals['getit'])) $useragent .= " GetIt";
     $ch = curl_init();
     // SET URL FOR THE POST FORM LOGIN
-    curl_setopt($ch, CURLOPT_URL, 'http://tgtinfo.net'); //'http://tgtinfo.net'
+    curl_setopt($ch, CURLOPT_URL, 'http://tgtinfo.net'); //'http://tgtinfo.net' or http://localhost/cloudservice/
     // ENABLE HTTP POST
     curl_setopt ($ch, CURLOPT_POST, 1);
     // SET POST FIELD to the content
@@ -492,17 +525,22 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     }
     //Set up the content
     mct_ai_getpostcontent($page, $post_arr,$topic['topic_type']);
-    if ($mct_ai_optarray['ai_show_orig']){
-        $post_arr['orig_link'] = mct_ai_formatlink($post_arr);
-        $post_content = $post_arr['article'].'<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>';
-        if (empty($mct_ai_optarray['ai_orig_text'])) {
-            $post_content = str_replace("Click here to view original web page at ",$mct_ai_optarray['ai_orig_text'],$post_content); //remove space too
-        } else {
-            $post_content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$post_content);  // leave space
-        }
+    if ($topic['topic_type'] == "Video" && !empty($mct_ai_optarray['ai_video_nolink'])  && stripos($post_arr['article'], '<iframe title="Video Player"') !== false) {
+        //video embedded and nolink set, so just include content, no link
+        $post_content = $post_arr['article'];
     } else {
-        $post_content = $post_arr['article'].'<p id="mct-ai-attriblink"><a href="'.$link_redir.'" >Click here to view full article</a></p>';
-        $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
+        if ($mct_ai_optarray['ai_show_orig']){
+            $post_arr['orig_link'] = mct_ai_formatlink($post_arr);
+            $post_content = $post_arr['article'].'<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>';
+            if (empty($mct_ai_optarray['ai_orig_text'])) {
+                $post_content = str_replace("Click here to view original web page at ",$mct_ai_optarray['ai_orig_text'],$post_content); //remove space too
+            } else {
+                $post_content = str_replace("Click here to view original web page at",$mct_ai_optarray['ai_orig_text'],$post_content);  // leave space
+            }
+        } else {
+            $post_content = $post_arr['article'].'<p id="mct-ai-attriblink"><a href="'.$link_redir.'" >Click here to view full article</a></p>';
+            $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
+        }
     }
     $post_content = apply_filters('mct_ai_postcontent',$post_content);
     
@@ -687,11 +725,19 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
                     $post_arr['article'] = preg_replace('{(src=")([^"]*)(")}','$1'.$newstr.'$3',$post_arr['article']);
                 }
             }
-            /*Try to get youtube thumbnail
-            if (preg_match('{youtube.com/(v|embed)/([^"|\?]*)("|\?)}i', $post_arr['article'], $match)) {
-                $video_id = $match[2];
-                $post_arr['yt_thumb'] = "http://img.youtube.com/vi/$video_id/2.jpg";
-            }  */
+            //Try to get youtube description
+            if (!empty($mct_ai_optarray['ai_video_desc'])) {
+                if (preg_match('{youtube.com/(v|embed)/([^"|\?]*)("|\?)}i', $post_arr['article'], $match)) {
+                    $video_id = $match[2];
+                    $res =  wp_remote_get("http://gdata.youtube.com/feeds/api/videos/".$video_id."?v=2");
+                    if ( is_wp_error( $res ) ) return;
+                    $pos = preg_match('{<media:description([^>]*)>([^<]*)</media:description>}',$res['body'], $match);
+                    if (!$pos) return;
+                    //try to activate links in the text
+                    $desc = preg_replace('{https?://([^\s]*)}','<a href="$0" target="_blank">$0</a>',$match[2]);
+                    $post_arr['article'] .= '<p class="mct_ai_ytdesc">'.$desc.'</p>';
+                } 
+            }
             return;
         }
     }
@@ -699,11 +745,10 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
     if (!empty($mct_ai_optarray['ai_line_brk'])) {
         $article = preg_replace('{</p>\n?<p[^>]*>}','&&&&',$article);
         $article = preg_replace('{</li>}','&&&&',$article);
-        $article = preg_replace('{<o|ul>}','&&&&',$article);
+        $article = preg_replace('{<ol|ul>}','&&&&',$article);
         $article = preg_replace('{</h[1-9]>}','&&&&',$article);
         $article = preg_replace('{<br\s?/?>}','&&',$article);
     }
-    
     $article = preg_replace('@<style[^>]*>[^<]*</style>@i','',$article);  //remove style tags
     $article = preg_replace('{<([^>]*)>}',' ',$article);  //remove tags but leave spaces
     //$article = preg_replace('{&[a-z]*;}',"'",$article);  //remove any encoding
@@ -732,27 +777,6 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
         $excerpt = preg_replace('{&&}','',$excerpt); 
     }
     $post_arr['article'] = mct_ai_setexcerpt($excerpt);
-}
-
-function mct_ai_formatlink($post_arr){
-    //Format link based on options
-    global $mct_ai_optarray;
-    
-    $link = $post_arr['orig_link'];
-    $title = $post_arr['title'];
-    $intro = "Click here to view original web page at ";
-    $cnt = preg_match('{^(<a[^>]*>)([^<]*)(</a>)$}',$link,$matches);
-    $anchor = str_replace($intro,"",$matches[2]);
-    
-    if (isset($mct_ai_optarray['ai_post_title']) && $mct_ai_optarray['ai_post_title'] ){
-        $anchor = $title;
-    }
-    if (isset($mct_ai_optarray['ai_no_anchor']) && $mct_ai_optarray['ai_no_anchor'] ){
-        return $intro.$matches[1].$anchor."</a>";
-    } else {
-        return $matches[1].$intro.$anchor."</a>";
-    }
-    return $link;
 }
 
 function mct_ai_clean_postsread($pread){
