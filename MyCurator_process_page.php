@@ -12,13 +12,6 @@ include_once (dirname(dirname(dirname(dirname(__FILE__)))) .  DIRECTORY_SEPARATO
 include_once(plugin_dir_path(__FILE__).'MyCurator_local_proc.php');
 include_once(plugin_dir_path(__FILE__).'MyCurator_fcns.php');
 
-//define global constants
-
-define ('MCT_AI_REDIR','ailink');
-define ('MCT_AI_LOG_ERROR','ERROR');
-define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
-define ('MCT_AI_LOG_PROCESS','PROCESS');
-
 set_time_limit(300);  //bump up execution time
 //if multisite, blog id should be on the call string, switch to the given blog
 if (is_multisite()){
@@ -131,5 +124,6 @@ function mct_ai_newblog($bid){
    $ai_sl_pages_tbl = $wpdb->prefix.'sl_pages';
    $ai_logs_tbl = $wpdb->prefix.'ai_logs';
    $mct_ai_optarray = get_option('mct_ai_options');
+   
 }
 ?>

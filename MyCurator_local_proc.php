@@ -11,7 +11,7 @@ add_action('wp_feed_options', 'mct_ai_set_simplepie');
 define ('MCT_AI_PIE_CACHE',3600);  
     
 
-function mct_ai_process_site(){
+function mct_ai_process_site($cron){
     //This function will process all topics for a site/blog
     //It is started from the Run AI Process button on the Topics page
     global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
@@ -30,6 +30,20 @@ function mct_ai_process_site(){
         return;
     }
     foreach ($topics as $topic){
+        if ($cron){
+            if (!empty($topic['topic_last_run'])){
+                $lastrun = strtotime($topic['topic_last_run']);
+                $now = strtotime($wpdb->get_var('Select now()'));  //use mysql time
+                if (($now - $lastrun) < 7200) {
+                    mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Stopping, Topic recently updated ', ' ');
+                    //delete_option('mct_ai_proc_queue');  //no more work
+                    exit();
+                }
+            }
+            $thistopic = $topic['topic_id'];
+            $sql = "UPDATE $ai_topic_tbl SET topic_last_run = now() WHERE topic_id = '$thistopic'";
+            $wpdb->query($sql);
+        }
         unset($topic['topic_last_run']);  //Don't pass to cloud
         mct_ai_process_topic($topic);
     } //end for each topic
@@ -40,7 +54,7 @@ function mct_ai_process_topic($topic){
     //Process all feeds and items within a topic
     //$topic is an array with each field from the topics file
     global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
-
+    
     //For this topic, get the sources
     $sources = array_map('trim',explode(',',$topic['topic_sources']));
     if (empty($sources)){
@@ -164,6 +178,90 @@ function mct_ai_process_topic($topic){
     } //end for each source
 }  
         
+function mct_ai_process_request(){
+    //Process any outstanding requests from the log
+    global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
+    
+    $page = "Not Here";
+    $tname = '';
+    
+    //Get Request entries
+    $sql = "SELECT `logs_topic`, `logs_id`, `logs_url`, `logs_source`
+            FROM $ai_logs_tbl WHERE `logs_type` = '".MCT_AI_LOG_REQUEST."' ORDER BY `logs_topic`";
+    $rqsts = $wpdb->get_results($sql, ARRAY_A);
+    if (empty($rqsts)) {
+        mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Request Processing - No Requests: ', '');
+        return;
+    }
+    mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Start Request Processing: ', count($rqsts));
+    //Loop on Request entries
+    foreach ($rqsts as $rqst){
+        $post_arr = array(); 
+        if($tname == '' || $tname != $rqst['logs_topic']) {
+            //Get new Topic record
+            $sql = "SELECT *
+            FROM $ai_topic_tbl
+            WHERE topic_name = '".$rqst['logs_topic']."'";
+            $topic = $wpdb->get_row($sql, ARRAY_A);
+            if (empty($topic)){
+                //Topic gone, so get rid of this entry and continue
+                mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Request Skipped - No Topic: ', $rqst['logs_topic']);
+                $delrslt = $wpdb->delete($ai_logs_tbl,array('logs_id' => $rqst['logs_id']));
+                if (!$delrslt) { 
+                    mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Request Error Deleting Log Entry - Quiting', $rqst['logs_url']);
+                    exit();//Probably we are a duplicate process so get out
+                }
+                continue;
+            }
+            unset($topic['topic_last_run']);  //Don't pass to cloud 
+            //Set up the topic info for the cloud service
+            if (!mct_ai_cloudtopic($topic)) {
+                //Topic not set, so get rid of this entry and continue
+                mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Request Skipped - Failed Cloud Topic: ', $rqst['logs_topic']);
+                $delrslt = $wpdb->delete($ai_logs_tbl,array('logs_id' => $rqst['logs_id']));
+                if (!$delrslt) { 
+                    mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Request Error Deleting Log Entry - Quiting', $rqst['logs_url']);
+                    exit();//Probably we are a duplicate process so get out
+                }
+                continue;
+            }
+            $tname = $topic['topic_name'];
+            mct_ai_log($tname,MCT_AI_LOG_PROCESS, 'Request Processing Topic ', '');
+        }
+        //Check locally for page
+        $item_obj = new stdClass;
+        $item_obj->type = 'REQUEST';
+        $item_obj->link = $rqst['logs_url'];
+        $post_arr['source'] = $rqst['logs_source'];
+        $page = mct_ai_get_page($item_obj, $topic, $post_arr);
+        if (empty($page)) {
+            $delrslt = $wpdb->delete($ai_logs_tbl,array('logs_id' => $rqst['logs_id']));
+            if (!$delrslt) { 
+                mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Request Error Deleting Log Entry - Quiting', $rqst['logs_url']);
+                exit();//Probably we are a duplicate process so get out
+            }
+            continue;  //we already have this
+        }
+        //Go get it
+        $postit = mct_ai_cloudclassify($page, $topic, $post_arr);
+        $page = $post_arr['page'];
+        //update the style sheet with the local copy
+        $page = str_replace("mct_ai_local_style",plugins_url('MyCurator_page.css',__FILE__), $page);
+        mct_ai_setPRpage($page, $topic, $post_arr);  //Need to update posts read if this is a new page
+        //Post the new entry if good response
+        if ($postit) {
+            mct_ai_post_entry($topic, $post_arr, $page);  //post entries
+        } 
+        //Get rid of log entry
+        $delrslt = $wpdb->delete($ai_logs_tbl,array('logs_id' => $rqst['logs_id']));
+        if (!$delrslt) { 
+            mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Request Error Deleting Log Entry - Quiting', $rqst['logs_url']);
+            exit();//Probably we are a duplicate process so get out
+        }
+    }
+    mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'End Request Processing: ', '');
+}
+
 function mct_ai_rssapi($feed, $topic){
     //Process an RSS feed with Simple Pie and return an items object
     
@@ -306,16 +404,11 @@ function mct_ai_get_page($item, $topic, &$post_arr){
     }
     $this_topic = trim(strval($blog_id)).':'.trim($topic['topic_id']); // Set up topic key with site and topic
     //check postsread for the item
-    //Use double quotes if url has single quote
-    if (stripos($ilink,"'") === false){
-        $sql = "SELECT `pr_id`, `pr_page_content`, `pr_topics`
+    $dbstr = (strlen($ilink) > 1000) ? substr($ilink,0,1000) : $ilink; //truncate for index lookup
+    $sql_url = esc_sql($dbstr);
+    $sql = "SELECT `pr_id`, `pr_page_content`, `pr_topics`
             FROM $ai_postsread_tbl
-            WHERE pr_url = '$ilink'";
-    } else {
-        $sql = 'SELECT `pr_id`, `pr_page_content`, `pr_topics`
-            FROM '.$ai_postsread_tbl.'
-            WHERE pr_url = "$ilink"';
-    }
+            WHERE pr_url = '$sql_url'";
     $pr_row = $wpdb->get_row($sql, ARRAY_A);
     if ($pr_row != NULL){
         //check to see if this topic is in list of topics read
@@ -361,6 +454,7 @@ function mct_ai_cloudtopic($topic){
 function mct_ai_cloudclassify($page,$topic,&$post_arr){
     //This function calls the cloud service and has it process a page for this topic
     //If page is "Not Here", it will return the new page
+    global $mct_ai_optarray;
     
     $post_arr['page'] = $page;
     
@@ -369,8 +463,9 @@ function mct_ai_cloudclassify($page,$topic,&$post_arr){
     if (!empty($response->postarr)) $post_arr = get_object_vars($response->postarr);  //may have page even if error
     if (!empty($response->LOG)) {
         $log = get_object_vars($response->LOG);
-        //Log the error and return false
+        //Log the error or request and return false
         mct_ai_log($log['logs_topic'], $log['logs_type'], $log['logs_msg'], $log['logs_url'], $post_arr['source']);
+        if (stripos($log['logs_msg'],'Page Text') !== false) $post_arr['pg_err'] = true;
         return false;    
     }
 
@@ -391,8 +486,10 @@ function mct_ai_callcloud($type,$topic,$postvals){
         'utf8' => $mct_ai_optarray['ai_utf8'], //which 'word' processing to use
         'ver' => MCT_AI_VERSION,
         'gzip' => 1, //enable compression
+        'rqst' => $mct_ai_optarray['ai_page_rqst'], //Use request mode?
         'topic_id' => strval($topic['topic_id'])
         );
+    if (isset($postvals['getit'])) $cloud_data['rqst'] = 0; //Don't use request mode on Get It
     $cloud_json = json_encode($cloud_data);
     //compression/header
     if (strlen($cloud_json) > 1000) {
@@ -448,10 +545,8 @@ function mct_ai_setPRpage($page, $topic, $post_arr){
     //Set the new page into the postsread table
     global $wpdb, $blog_id, $ai_postsread_tbl;
     
-    if (empty($page)) {
-        //already logged
-        return '';
-    }
+    if (empty($page) && empty($post_arr['pg_err'])) return; //Only log page if an error
+    
     $ilink = $post_arr['current_link'];
     $this_topic = trim(strval($blog_id)).':'.trim($topic['topic_id']); // Set up topic key with site and topic
     //insert into postsread
@@ -623,7 +718,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     if ($topic['topic_status'] == 'Active' && !$rel_not_good){
         if (empty($post_arr['tags'])){
             $tagterm = get_term($topic['topic_tag'],'post_tag');
-            $details['tags_input'] = array($tagterm->name);
+            if (!empty($tagterm)) $details['tags_input'] = array($tagterm->name);
         } else {
             $details['tags_input'] = $post_arr['tags'];
         }

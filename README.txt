@@ -4,7 +4,7 @@ Donate link:
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
 Tested up to: 3.6
-Stable tag: 2.0.0
+Stable tag: 2.1.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -84,6 +84,12 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 2.1.0 =
+* New Request Processing Mode provides faster background processing of articles.
+* New Inline background process is more reliable especially on highly secured hosts.
+* Create new Notebooks on the fly in Get It and [NoteBk] training tag.
+* Fix set up of new blog when MyCurator is network activated in Multisite network.
 
 = 2.0.0 =
 * Notebooks let you save any articles found by MyCurator for future use in curated posts or writing articles.

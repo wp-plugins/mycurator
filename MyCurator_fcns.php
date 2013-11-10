@@ -569,12 +569,36 @@ function mct_ai_train_ajax() {
         }
         $note = str_replace(PHP_EOL,'<br>',$_POST['note']);
         $note = wp_kses_post($note);
-        $notebk_id = intval($_POST['nbook']);
+        $notebk_id = (isset($_POST['nbook'])) ? intval($_POST['nbook']) : 0;
+        if (!empty($_POST['newnb'])) {
+            //Insert Notebook First
+            $title = trim(sanitize_text_field($_POST['newnb']));
+            $details = array(
+              'post_content'  => '',
+              'post_title'  =>  $title,
+              'post_name' => sanitize_title($title),
+              'post_type' =>  'mct_notebk',
+              'post_status' => 'publish'
+            );
+            $notebk_id = wp_insert_post($details);
+            if (empty($notebk_id)) {
+                $response->add(array('data' => 'Error - Could Not Create Notebook'));
+                $response->send();
+                exit();
+            }
+        }
+        if (empty($notebk_id)) {
+                $response->add(array('data' => 'Error - No Notebook Selected'));
+                $response->send();
+                exit();
+        }
         mct_nb_traintonotepg($pid, $notebk_id, $note);
         $response->add(array('data' => 'Ok'));
         $response->send();
         exit();
     }
+    $response->add(array('data' => 'Error - No Trx Specified'));
+    $response->send();
     exit();
 }
 
@@ -620,7 +644,7 @@ function mct_ai_traintoblog($thepost, $status){
                 $details['tags_input'] = get_post_meta($thepost,'mct_ai_tag_search2', true);
             } else {
                 $tagterm = get_term($row->topic_tag,'post_tag');
-                $details['tags_input'] = array($tagterm->name);
+                if (!empty($tagterm)) $details['tags_input'] = array($tagterm->name);
             }
             $details['post_type'] = 'post';
             if ($status == 'draft') {

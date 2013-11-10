@@ -39,6 +39,8 @@ add_filter('user_has_cap','mct_ai_hascap',10,3);
 function mct_ai_register(){
     //Registers custom post type targets
     //Set up args array
+    global $mct_ai_optarray;
+    
     $target_args = array (
         'public' => false,
         'show_ui' => true,
@@ -126,18 +128,47 @@ function mct_ai_register(){
     
     //Shortcode for a target_ai posts page
     add_shortcode('MyCurator_training_page','target_ai_shortcode');
-    
+    //Set up global options
+    $mct_ai_optarray = get_option('mct_ai_options');
+    //New install, set options to default
+    if (empty($mct_ai_optarray)){ 
+        $opt = mct_ai_setoptions(true);
+        update_option('mct_ai_options',$opt);
+        $mct_ai_optarray = get_option('mct_ai_options');
+        //Set up ai_class terms
+        wp_insert_term('not sure','ai_class');
+        wp_insert_term('good','ai_class');
+        wp_insert_term('bad','ai_class');
+    }
+    //New version, perform any updates
+    if ($mct_ai_optarray['MyC_version'] != MCT_AI_VERSION) {
+        //Any code to run for this new version
+        mct_ai_createdb(); //Always update the db in case they skipped a few updates
+        $mct_ai_optarray['MyC_version'] = MCT_AI_VERSION;
+        //Need to keep these for those who skip updates until prior versions to "Added Ver" are not supported
+        if (!isset($mct_ai_optarray['ai_no_procpg'])) $mct_ai_optarray['ai_no_procpg'] = 0;// Added 2.1
+        if (!isset($mct_ai_optarray['ai_page_rqst'])) $mct_ai_optarray['ai_page_rqst'] = 0;// Added 2.1
+        if (!isset($mct_ai_optarray['ai_img_align'])) $mct_ai_optarray['ai_img_align'] = 'left'; // Added 2.1
+        if (!isset($mct_ai_optarray['ai_img_size'])) $mct_ai_optarray['ai_img_size'] = 'thumbnail'; // Added 2.1
+        wp_insert_term('not sure','ai_class'); // Added 2.1
+        wp_insert_term('good','ai_class');  //Added 2.1
+        wp_insert_term('bad','ai_class');  //Added 2.1
+        //
+        update_option('mct_ai_options',$mct_ai_optarray);
+        $mct_ai_optarray = get_option('mct_ai_options');
+    }
 }
 
 function mct_ai_hascap($allcaps, $cap, $args){
     //Let Authors view training page which is private
     //
+    if (empty($cap)) return $allcaps;
     // Bail out if we're not asking about private page:
     if ( 'read_private_pages' != $cap[0] )
             return $allcaps;
 
     // Bail out for users who can already edit others posts:
-    if ( $allcaps['edit_others_posts'] )
+    if ( !empty($allcaps['edit_others_posts'] ))
             return $allcaps;
 
     // Bail out for users who can't publish posts:
@@ -563,7 +594,11 @@ function mct_ai_inlinetb($post_id){
     }
     // Get original URL
     $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
-    $linktxt = $matches[1].' target="_blank">'.$matches[2].'</a>';
+    if ($pos) {
+        $linktxt = $matches[1].' target="_blank">'.$matches[2].'</a>';
+    } else {
+        $linktxt = ' ';
+    }
     $article = '<p>'.$linktxt.'</p>'.$article;
     ?>
     <div id="ai-quick-<?php echo $post_id; ?>" style="max-width: 540px; display: none;" >
@@ -601,19 +636,25 @@ function mct_nb_dialog() {
     $notebks = get_posts($args);
     ?>
     <div id="nb-dialog" class="hide-if-no-js" title="Move to Notebook" style="margin-left:5px">
-        <?php if (!empty($notebks)) { ?>
         <form>
             <strong><p id="nb-title"></p></strong>
+            
+            <?php if (!empty($notebks)) { ?>
             <p><select name="notebk" id="mct-nb-select">
-            <?php foreach ($notebks as $notebk) { 
-            if (! current_user_can('edit_others_posts') && $notebk->post_author != $user_ID) continue;
+            <?php    foreach ($notebks as $notebk) { 
+                    if (! current_user_can('edit_others_posts') && $notebk->post_author != $user_ID) continue;
             ?>
             <option value="<?php echo $notebk->ID; ?>" ><?php echo $notebk->post_title; ?></option>
-            <?php  } ?>
-            </select></p><br>Notes:<br>
+            <?php  } echo " </select></p>";//foreach
+            } //!empty?>
+            
+            <?php mct_ai_getplan(); if (mct_nb_showlimits(false, false)) { 
+                if (!empty($notebks)) echo " OR ";?>
+            Add to New Notebook: <input name="newnb" type="text" id="mct-nb-newnb" value="" size="50"> <br>
+            <?php } //showlimits ?>
+            <br>Notes:<br>
             <textarea name="notes" id="mct-nb-notes" rows="5" cols="50" ></textarea>
         </form>
-        <?php } else { echo "<h2>No Notebooks Created Yet</h2>"; } ?>
     </div>
     <?php
 }
@@ -798,7 +839,7 @@ function mct_ai_addtrain(){
     $istrain = is_trainee($post->ID);
     //Is this a multi post?
     $term = wp_get_object_terms($post->ID,'ai_class',array('fields' => 'names'));
-    if ($term[0] == 'multi') $ismulti = true;
+    if (!empty($term) && $term[0] == 'multi') $ismulti = true;
     // set up the training keys
     $retstr = '';
     $train_base = plugins_url('MyCurator_train.php',__FILE__);
@@ -1413,7 +1454,7 @@ function mct_ai_trainscript($page) {
     global $mct_ai_optarray;
     
     $jsdir = plugins_url('js/MyCurator_training.js',__FILE__);
-    wp_enqueue_script('mct_ai_train',$jsdir,array('jquery','thickbox','jquery-ui-dialog'),'1.0.3');
+    wp_enqueue_script('mct_ai_train',$jsdir,array('jquery','thickbox','jquery-ui-dialog'),'1.0.4');
     $includes_url = includes_url();
     $protocol = isset($_SERVER["HTTPS"]) ? 'https://' : 'http://';
     $params = array(

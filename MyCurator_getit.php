@@ -68,9 +68,13 @@ function press_it() {
                 $post_arr['classed'] = 'not sure';
                 if (!empty($_POST['notebook'])) {
                     //validate the notes
+                    $nbid = (isset($_POST['notebk'])) ? absint($_POST['notebk']) : 0;
                     $note = str_replace(PHP_EOL,'<br>',$_POST['notes']);
                     $note = wp_kses_post($note);
-                    $newpost = mct_nb_addnotepg(absint($_POST['notebk']), $note,$post_arr, $page);
+                    if (!empty($_POST['newnb'])){
+                        $nbid = mct_ai_newnb();
+                    }
+                    $newpost = mct_nb_addnotepg($nbid, $note,$post_arr, $page);
                 } else {
                     $newpost = mct_ai_post_entry($topic, $post_arr, $page);
                 }
@@ -96,6 +100,11 @@ function press_it() {
         $note = str_replace(PHP_EOL,'<br>',$_POST['notes']);
         $note = wp_kses_post($note);
         $content =  $note;
+        $nbid = (isset($_POST['notebk'])) ? absint($_POST['notebk']) : 0;
+        if (!empty($_POST['newnb'])){
+            $nbid = mct_ai_newnb();
+        }
+        if (!$nbid) return false;
     } else {
         //Set up link String
         $content = mct_ai_build_link($url, $title);
@@ -119,7 +128,7 @@ function press_it() {
         //Note page insert
         $details['post_type'] = 'mct_notepg'; 
         $details['post_status'] = 'publish';
-        $details['post_parent'] = absint($_POST['notebk']);
+        $details['post_parent'] = $nbid;
     } else {
         //minimal training post - no topic or class
         $details['post_type'] = 'target_ai'; //post as a target
@@ -255,6 +264,13 @@ jQuery(document).ready(function($) {
 			</div>
 		        <script type="text/javascript">setTimeout('self.close();',2000);</script>
                        
+                  <?php exit(); } 
+                  if (isset($posted)) { ?>
+                      <div id="message" class="error">
+			<p><strong><?php _e('Article was NOT saved.'); ?></strong>
+			<a href="#" onclick="window.close();"><?php _e('Close Window'); ?></a></p>
+                        
+			</div>
                   <?php exit(); } ?>
 
 		<div id="titlediv">
@@ -356,12 +372,11 @@ jQuery(document).ready(function($) {
              </div>
              <?php } //empty topics ?>
              <div id="tabs-3">
-                <?php if (!empty($notebks)) { ?>
                 <div id="categorydiv" class="postbox">
                     <h3 class="hndle"><?php _e('Notebooks') ?></h3>
                     <div class="inside">
                     <div id="taxonomy-category" class="categorydiv">
-                        <?php
+              <?php if (!empty($notebks)) { 
                         if ($nchk) {
                             $check = "checked";
                         } else {
@@ -376,15 +391,20 @@ jQuery(document).ready(function($) {
                             }
                         } 
                         if (!$nchk) echo '</select>';
+                        }
+                         mct_ai_getplan(); 
+                         if (mct_nb_showlimits(false, false)) {
+                             if (!empty($notebks)) echo " OR ";
+                             echo 'Add to New Notebook: <input name="newnb" type="text" id="mct-nb-newnb" value="" size="50">'; 
+                         }
                         ?>
                         <br>Notes:<br>
-                        <textarea name="notes" rows="5" cols="50" ></textarea>
+                        <textarea name="notes" rows="3" cols="50" ></textarea>
                     </div>
                     </div>
                 </div>
                 <input name="notebook" id="notebook" value="Save to Notebook" type="submit" class="button-primary" >
                 <img src="<?php echo esc_url( admin_url( 'images/wpspin_light.gif' ) ); ?>" alt="" id="saving" style="display:none;" />
-                <?php } else { echo "<h2>No Notebooks Created Yet</h2>"; }//empty notebks ?>
             </div>
             
          </div>
@@ -422,4 +442,17 @@ function mct_ai_nulltopic(){
         'topic_options' => '',  
     );
     return $topic;
+}
+function mct_ai_newnb(){
+    //Insert Notebook First
+    $title = trim(sanitize_text_field($_POST['newnb']));
+    $details = array(
+      'post_content'  => '',
+      'post_title'  =>  $title,
+      'post_name' => sanitize_title($title),
+      'post_type' =>  'mct_notebk',
+      'post_status' => 'publish'
+    );
+    $nbid = wp_insert_post($details);
+    return $nbid;
 }
