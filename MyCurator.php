@@ -4,10 +4,11 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 2.0.0
+ * Version: 2.1.0
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
+ */
 /*
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -34,7 +35,8 @@ define ('MCT_AI_REDIR','ailink');
 define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
-define ('MCT_AI_VERSION', '2.0.0');
+define ('MCT_AI_LOG_REQUEST','REQUEST');
+define ('MCT_AI_VERSION', '2.1.0');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -45,61 +47,32 @@ $ai_logs_tbl = $wpdb->prefix.'ai_logs';
 
 //Activation hook
 register_activation_hook(__FILE__, 'mct_ai_activehook');
+//wpmu activate site hook
+add_action( 'wpmu_new_blog', 'mct_ai_wpmunewblog' );
 //Get options
 global $mct_ai_optarray;
 $mct_ai_optarray = get_option('mct_ai_options');
-if (empty($mct_ai_optarray)){
-    $mct_ai_optarray = array (
-        'ai_on' => TRUE,
-        'ai_excerpt' => 50,
-        'ai_log_days' => 7,
-        'ai_short_linkpg' => "1",
-        'ai_show_orig' => "1",
-        'ai_keep_good_here' => "1",
-        'ai_edit_makelive' => "1",
-        'ai_save_thumb' => "1",
-        'ai_now_date' => "1",
-        'ai_num_posts' => 10,
-        'ai_orig_text' => 'Click here to view original web page at',
-        'ai_save_text' => 'Click here to view full article',
-        'ai_embed_video' => "1",
-        'ai_lookback_days' => 7,
-        'ai_train_days' => 7,
-        'MyC_version' => MCT_AI_VERSION
-    );
-    update_option('mct_ai_options',$mct_ai_optarray);
-}
-if (!isset($mct_ai_optarray['ai_excerpt'])) { 
-    $mct_ai_optarray['ai_excerpt'] = 50;  //set up for existing installs
-    update_option('mct_ai_options',$mct_ai_optarray);
-}
-if (empty($mct_ai_optarray['MyC_version']) || $mct_ai_optarray['MyC_version'] != MCT_AI_VERSION) {
-    //Any code to run for this new version
-    mct_ai_createdb();
-    $mct_ai_optarray['MyC_version'] = MCT_AI_VERSION;
-    update_option('mct_ai_options',$mct_ai_optarray);
-}
-//Set up menus
-add_action('admin_menu', 'mct_ai_createmenu');
-//Set up Cron
-add_action ('mct_ai_cron_process', 'mct_ai_run_mycurator');
-add_filter ('cron_schedules', 'mct_ai_set_cron_sched');
-
-//Link manager, add rss column, change link entry form if requested
-if ($mct_ai_optarray['ai_on']) {
-    add_filter('manage_link-manager_columns','mct_ai_linkcol');
-    add_action('manage_link_custom_column','mct_ai_linkcolout',10,2);
-    if ($mct_ai_optarray['ai_short_linkpg']) add_action('add_meta_boxes_link','mct_ai_linkeditmeta');
-}
-//For wp3.5 add filter to keep link manager enabled
-add_filter( 'pre_option_link_manager_enabled', '__return_true' );
-
 //Get support functions
 include('MyCurator_posttypes.php');
 include('MyCurator_local_classify.php');  
 include('MyCurator_fcns.php');
 include('MyCurator_notebk.php');
 include_once('MyCurator_link_redir.php');
+include_once ('MyCurator_local_proc.php');
+
+//Set up menus
+add_action('admin_menu', 'mct_ai_createmenu');
+//Set up Cron
+add_action ('mct_ai_cron_process', 'mct_ai_run_mycurator');
+add_action ('mct_ai_cron_rqstproc', 'mct_ai_process_request');
+add_filter ('cron_schedules', 'mct_ai_set_cron_sched');
+
+//Link manager, add rss column, change link entry form if requested
+add_filter('manage_link-manager_columns','mct_ai_linkcol');
+add_action('manage_link_custom_column','mct_ai_linkcolout',10,2);
+if ($mct_ai_optarray['ai_short_linkpg']) add_action('add_meta_boxes_link','mct_ai_linkeditmeta');
+//For wp3.5 add filter to keep link manager enabled
+add_filter( 'pre_option_link_manager_enabled', '__return_true' );
 
 //Check for plan if we don't have one
 if (empty($mct_ai_optarray['ai_plan']) && !empty($mct_ai_optarray['ai_cloud_token'])){  
@@ -133,9 +106,32 @@ function mct_ai_activehook() {
     //Redirect rules
     mct_sl_add_rule();
     flush_rewrite_rules();
-    //register custom post type/taxonomy
-    mct_ai_register();
     
+}
+
+function mct_ai_wpmunewblog($blog_id){
+    //New blog added, call activation
+    global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
+    
+    if ( 1 !== did_action( 'wpmu_new_blog' ) )
+        return;
+    if ( ! function_exists( 'is_plugin_active_for_network' ) ) {
+        require_once( ABSPATH . '/wp-admin/includes/plugin.php' );
+    }
+    if ( !is_plugin_active_for_network( plugin_basename(__FILE__) ) ) return;
+    
+    switch_to_blog( $blog_id );
+    $ai_topic_tbl = $wpdb->prefix.'topic';
+    $ai_postsread_tbl = $wpdb->prefix.'postsread';  
+    $ai_sl_pages_tbl = $wpdb->prefix.'sl_pages';
+    $ai_logs_tbl = $wpdb->prefix.'ai_logs';
+    mct_ai_activehook();
+    restore_current_blog();
+    $ai_topic_tbl = $wpdb->prefix.'topic';
+    $ai_postsread_tbl = $wpdb->prefix.'postsread';  
+    $ai_sl_pages_tbl = $wpdb->prefix.'sl_pages';
+    $ai_logs_tbl = $wpdb->prefix.'ai_logs';
+    $mct_ai_optarray = get_option('mct_ai_options');
 }
 
 function mct_ai_linkcol($colarray) {
@@ -406,14 +402,14 @@ function mct_ai_vercheck() {
 }
 function mct_ai_mainpage() {
     //Creates the All Topics list, with topic name and sources highlighted as links for editing
-    global $wpdb, $ai_topic_tbl;
+    global $wpdb, $ai_topic_tbl, $mct_ai_optarray;
     
     // run ai process?
     if (isset($_POST['run_ai'])){
         if (!current_user_can('manage_options')) wp_die("Insufficient Privelege");
-        check_admin_referer('mct_ai_runai','runaiclick');     
-        include_once ('MyCurator_local_proc.php');
-        mct_ai_process_site();
+        check_admin_referer('mct_ai_runai','runaiclick');   
+        if (!empty($mct_ai_optarray['ai_page_rqst'])) mct_ai_process_request(); //Get Requests
+        mct_ai_process_site(false);
         echo '<div class="wrap">';
         echo '<h2>MyCurator Process Completed</h2></div>';
         exit;
@@ -543,14 +539,14 @@ function mct_ai_topicpage() {
             'topic_skip_domains' => $valid_str,
             'topic_cat' => strval(absint($_POST['topic_cat'])),
             'topic_tag' => strval(absint($_POST['topic_tag'])),
-            'topic_tag_search2' => $_POST['topic_tag_search2'],
+            'topic_tag_search2' => strval(absint((isset($_POST['topic_tag_search2']) ? $_POST['topic_tag_search2'] : 0) )),
             'topic_sources' => $tsource,
             'opt_post_user' => $_POST['opt_post_user'],
-            'opt_image_filter' => strval(absint($_POST['opt_image_filter'])),
+            'opt_image_filter' => strval(absint((isset($_POST['opt_image_filter']) ? $_POST['opt_image_filter'] : 0) )),
             'topic_min_length' => strval(absint($_POST['topic_min_length']))
         );        
         // Get category create name
-        $createcat = trim(sanitize_text_field($_POST['topic_createcat']));
+        $createcat = trim(sanitize_text_field((isset($_POST['topic_createcat']) ? $_POST['topic_createcat'] : '')));
         //Get the topic name and validate
         $topic_name = $edit_vals['topic_name'] = trim(sanitize_text_field($_POST['topic_name']));
         if ($topic_name == '') {
@@ -867,55 +863,11 @@ function mct_ai_optionpage() {
    
     if (isset($_POST['Submit']) ) {
         //create db just in case
-         mct_ai_createdb();
+         //mct_ai_createdb();
         //load options into array and update db
         if (!current_user_can('manage_options')) wp_die("Insufficient Privelege");
         check_admin_referer('mct_ai_optionspg','optionset');
-        $opt_update = array (
-            'ai_log_days' => absint($_POST['ai_log_days']),
-            'ai_on' => ($_POST['ai_on'] == FALSE ? FALSE : TRUE),
-            'ai_cloud_token' => trim($_POST['ai_cloud_token']),
-            'ai_train_days' => absint($_POST['ai_train_days']),
-            'ai_lookback_days' => absint($_POST['ai_lookback_days']),
-            'ai_short_linkpg' => absint($_POST['ai_short_linkpg']),
-            'ai_save_thumb' => absint($_POST['ai_save_thumb']),
-            'ai_cron_period' => $_POST['ai_cron_period'],
-            'ai_keep_good_here' => absint($_POST['ai_keep_good_here']),
-            'ai_excerpt' => absint($_POST['ai_excerpt']),
-            'ai_nosave_excerpt' => absint($_POST['ai_nosave_excerpt']),
-            'ai_show_orig' => absint($_POST['ai_show_orig']),
-            'ai_orig_text' => trim(sanitize_text_field($_POST['ai_orig_text'])),
-            'ai_save_text' => trim(sanitize_text_field($_POST['ai_save_text'])),
-            'ai_post_user' => trim(sanitize_text_field($_POST['ai_post_user'])),
-            'ai_utf8' => absint($_POST['ai_utf8']),
-            'ai_edit_makelive' => absint($_POST['ai_edit_makelive']),
-            'ai_num_posts' => absint($_POST['ai_num_posts']),
-            'ai_post_title' => absint($_POST['ai_post_title']),
-            'ai_new_tab' => absint($_POST['ai_new_tab']),
-            'ai_no_quotes' => absint($_POST['ai_no_quotes']),
-            'ai_now_date' => absint($_POST['ai_now_date']),
-            'ai_post_img' => absint($_POST['ai_post_img']),
-            'ai_img_align' => trim(sanitize_text_field($_POST['ai_img_align'])),
-            'ai_img_size' => trim(sanitize_text_field($_POST['ai_img_size'])),
-            'ai_no_anchor' => absint($_POST['ai_no_anchor']),
-            'ai_no_inline_pg' => absint($_POST['ai_no_inline_pg']),
-            'ai_no_train_live' => absint($_POST['ai_no_train_live']),
-            'ai_no_fmthelp' => absint($_POST['ai_no_fmthelp']),
-            'ai_show_full'  => absint($_POST['ai_show_full']),
-            'ai_embed_video' => absint($_POST['ai_embed_video']),
-            'ai_video_width' => absint($_POST['ai_video_width']),
-            'ai_video_height' => absint($_POST['ai_video_height']),
-            'ai_video_desc' => absint($_POST['ai_video_desc']),
-            'ai_video_nolink' => absint($_POST['ai_video_nolink']),
-            'ai_line_brk' => absint($_POST['ai_line_brk']),
-            'ai_hide_menu' => absint($_POST['ai_hide_menu']),
-            'ai_image_title' => absint($_POST['ai_image_title']),
-            'ai_getit_tab' => absint($_POST['ai_getit_tab']),
-            'ai_tw_conk' => trim(sanitize_text_field($_POST['ai_tw_conk'])),
-            'ai_tw_cons' => trim(sanitize_text_field($_POST['ai_tw_cons'])),
-            'ai_plan' => $mct_ai_optarray['ai_plan'],
-            'MyC_version' => $mct_ai_optarray['MyC_version']
-        );
+        $opt_update = mct_ai_setoptions(false);
         //Validation
         if (empty($opt_update['ai_log_days'])) $opt_update['ai_log_days'] = 7;
         if ($opt_update['ai_log_days'] > 90) $opt_update['ai_log_days'] = 90;
@@ -931,6 +883,9 @@ function mct_ai_optionpage() {
             if (wp_next_scheduled('mct_ai_cron_process')){
                 wp_clear_scheduled_hook('mct_ai_cron_process');  //Clear out old entries
             }
+            if (wp_next_scheduled('mct_ai_cron_rqstproc')){
+                wp_clear_scheduled_hook('mct_ai_cron_rqstproc');  //Clear out old entries
+            }
             $cronperiod = 'mct6hour';  //default if not set
             if ($opt_update['ai_cron_period'] == '3') $cronperiod = 'mct3hour';
             if ($opt_update['ai_cron_period'] == '12') $cronperiod = 'twicedaily';
@@ -938,9 +893,14 @@ function mct_ai_optionpage() {
             $hour = rand(4,8)-get_option('gmt_offset');
             $strt = mktime($hour);  
             wp_schedule_event($strt,$cronperiod,'mct_ai_cron_process');
+            $strt = time()+(60*30);  //30 minutes from now
+            if (!empty($opt_update['ai_page_rqst'])) wp_schedule_event($strt,'hourly','mct_ai_cron_rqstproc');
         } else {
             if (wp_next_scheduled('mct_ai_cron_process')){
                 wp_clear_scheduled_hook('mct_ai_cron_process');  //Clear out old entries
+            }
+            if (wp_next_scheduled('mct_ai_cron_rqstproc')){
+                wp_clear_scheduled_hook('mct_ai_cron_rqstproc');  //Clear out old entries
             }
         }
         //Set up twitter
@@ -973,12 +933,7 @@ function mct_ai_optionpage() {
     }
     //Get Options
     $cur_options = get_option('mct_ai_options');
-    //Set values that may be empty after upgrade from older version
-    if (empty($cur_options['ai_cron_period'])) $cur_options['ai_cron_period'] = '6';
-    if (empty($cur_options['ai_num_posts'])) $cur_options['ai_num_posts'] = 10;
-    if (empty($cur_options['ai_video_width'])) $cur_options['ai_video_width'] = 400;
-    if (empty($cur_options['ai_video_height'])) $cur_options['ai_video_height'] = 300;
-    if (empty($cur_options['ai_lookback_days'])) $cur_options['ai_lookback_days'] = 7;
+    
     ?>
     <script>
     //<![CDATA[
@@ -1240,7 +1195,16 @@ function mct_ai_optionpage() {
                     <th scope="row">Look back How Many Days for Articles?</th>
                     <td><input name="ai_lookback_days" type="text" id="ai_lookback_days" size ="5" value="<?php echo $cur_options['ai_lookback_days']; ?>"  />
                     <em>Between 1 and 90 days</em></td>    
-                </tr>     
+                </tr> 
+                <tr>
+                    <th scope="row">Page Request Mode</th>
+                    <td><input name="ai_page_rqst" type="checkbox" id="ai_page_rqst" value="1" <?php checked('1', $cur_options['ai_page_rqst']); ?>  /></td>    
+                </tr>  
+                <tr>
+                    <th scope="row">Use Inline Site Processing</th>
+                    <td><input name="ai_no_procpg" type="checkbox" id="ai_no_procpg" value="1" <?php checked('1', $cur_options['ai_no_procpg']); ?>  />
+                    </td>    
+                </tr>   
                 <tr>
                     <th scope="row">Hide MyCurator menu for non-Admins?</th>
                     <td><input name="ai_hide_menu" type="checkbox" id="ai_hide_menu" value="1" <?php checked('1', $cur_options['ai_hide_menu']); ?>  />
@@ -1262,6 +1226,61 @@ function mct_ai_optionpage() {
 <?php
 }
 
+function mct_ai_setoptions($default) {
+    //Set all option values
+    //if $default, use the default value (on install)
+    //if !$default use the $_POST variable
+    global $mct_ai_optarray;
+    
+    $opt_update = array (
+            'ai_log_days' => ($default) ? 7 : absint($_POST['ai_log_days']),
+            'ai_on' => ($default) ? TRUE : ($_POST['ai_on'] == FALSE ? FALSE : TRUE),
+            'ai_cloud_token' => ($default) ? '' : trim($_POST['ai_cloud_token']),
+            'ai_train_days' => ($default) ? 7 : absint($_POST['ai_train_days']),
+            'ai_lookback_days' => ($default) ? 7 : absint($_POST['ai_lookback_days']),
+            'ai_short_linkpg' => ($default) ? 1 : absint((isset($_POST['ai_short_linkpg']) ? $_POST['ai_short_linkpg'] : 0)),
+            'ai_save_thumb' => ($default) ? 1 : absint((isset($_POST['ai_save_thumb']) ? $_POST['ai_save_thumb'] : 0)),
+            'ai_cron_period' => ($default) ? 6 : absint($_POST['ai_cron_period']),
+            'ai_keep_good_here' => ($default) ? 1 : absint((isset($_POST['ai_keep_good_here']) ? $_POST['ai_keep_good_here'] : 0)),
+            'ai_excerpt' => ($default) ? 50 : absint($_POST['ai_excerpt']),
+            'ai_nosave_excerpt' => ($default) ? 0 : absint((isset($_POST['ai_nosave_excerpt']) ? $_POST['ai_nosave_excerpt'] : 0)),
+            'ai_show_orig' => ($default) ? 1 : absint((isset($_POST['ai_show_orig']) ? $_POST['ai_show_orig'] : 0)),
+            'ai_orig_text' => ($default) ? 'Click here to view original web page at' : trim(sanitize_text_field($_POST['ai_orig_text'])),
+            'ai_save_text' => ($default) ? 'Click here to view full article' : trim(sanitize_text_field($_POST['ai_save_text'])),
+            'ai_post_user' => ($default) ? '' : trim(sanitize_text_field($_POST['ai_post_user'])),
+            'ai_utf8' => ($default) ? 0 : absint((isset($_POST['ai_utf8']) ? $_POST['ai_utf8'] : 0)),
+            'ai_edit_makelive' => ($default) ? 1 : absint((isset($_POST['ai_edit_makelive']) ? $_POST['ai_edit_makelive'] : 0)),
+            'ai_num_posts' => ($default) ? 10 : absint($_POST['ai_num_posts']),
+            'ai_post_title' => ($default) ? 0 : absint((isset($_POST['ai_post_title']) ? $_POST['ai_post_title'] : 0)),
+            'ai_new_tab' => ($default) ? 0 : absint((isset($_POST['ai_new_tab']) ? $_POST['ai_new_tab'] : 0)),
+            'ai_no_quotes' => ($default) ? 0 : absint((isset($_POST['ai_no_quotes']) ? $_POST['ai_no_quotes'] : 0)),
+            'ai_now_date' => ($default) ? 1 : absint((isset($_POST['ai_now_date']) ? $_POST['ai_now_date'] : 0)),
+            'ai_post_img' => ($default) ? 0 : absint((isset($_POST['ai_post_img']) ? $_POST['ai_post_img'] : 0)),
+            'ai_img_align' => ($default) ? 'left' : trim(sanitize_text_field($_POST['ai_img_align'])),
+            'ai_img_size' => ($default) ? 'thumbnail' : trim(sanitize_text_field($_POST['ai_img_size'])),
+            'ai_no_anchor' => ($default) ? 0 : absint((isset($_POST['ai_no_anchor']) ? $_POST['ai_no_anchor'] : 0)),
+            'ai_no_inline_pg' => ($default) ? 0 : absint((isset($_POST['ai_no_inline_pg']) ? $_POST['ai_no_inline_pg'] : 0)),
+            'ai_no_train_live' => ($default) ? 0 : absint((isset($_POST['ai_no_train_live']) ? $_POST['ai_no_train_live'] : 0)),
+            'ai_no_fmthelp' => ($default) ? 0 : absint((isset($_POST['ai_no_fmthelp']) ? $_POST['ai_no_fmthelp'] : 0)),
+            'ai_show_full'  => ($default) ? 0 : absint((isset($_POST['ai_show_full']) ? $_POST['ai_show_full'] : 0)),
+            'ai_embed_video' => ($default) ? 1 : absint((isset($_POST['ai_embed_video']) ? $_POST['ai_embed_video'] : 0)),
+            'ai_video_width' => ($default) ? 400 : absint($_POST['ai_video_width']),
+            'ai_video_height' => ($default) ? 300 : absint($_POST['ai_video_height']),
+            'ai_video_desc' => ($default) ? 0 : absint((isset($_POST['ai_video_desc']) ? $_POST['ai_video_desc'] : 0)),
+            'ai_video_nolink' => ($default) ? 0 : absint((isset($_POST['ai_video_nolink']) ? $_POST['ai_video_nolink'] : 0)),
+            'ai_line_brk' => ($default) ? 0 : absint((isset($_POST['ai_line_brk']) ? $_POST['ai_line_brk'] : 0)),
+            'ai_hide_menu' => ($default) ? 0 : absint((isset($_POST['ai_hide_menu']) ? $_POST['ai_hide_menu'] : 0)),
+            'ai_image_title' => ($default) ? 1 : absint((isset($_POST['ai_image_title']) ? $_POST['ai_image_title'] : 0)),
+            'ai_getit_tab' => ($default) ? 0 : absint((isset($_POST['ai_getit_tab']) ? $_POST['ai_getit_tab'] : 0)),
+            'ai_tw_conk' => ($default) ? '' : trim(sanitize_text_field($_POST['ai_tw_conk'])),
+            'ai_tw_cons' => ($default) ? '' : trim(sanitize_text_field($_POST['ai_tw_cons'])),
+            'ai_plan' => ($default) ? '' : $mct_ai_optarray['ai_plan'],
+            'ai_no_procpg' => ($default) ? 1 : absint((isset($_POST['ai_no_procpg']) ? $_POST['ai_no_procpg'] : 0)),
+            'ai_page_rqst' => ($default) ? 1 : absint((isset($_POST['ai_page_rqst']) ? $_POST['ai_page_rqst'] : 0)),
+            'MyC_version' => ($default) ? MCT_AI_VERSION : MCT_AI_VERSION
+        );
+        return $opt_update;
+}
 function mct_ai_topicsource() {
     //Edit the topic sources
     
@@ -1659,6 +1678,7 @@ function mct_ai_logspage() {
         echo '<option value="'.MCT_AI_LOG_PROCESS.'" '.selected($type,MCT_AI_LOG_PROCESS,false).'>'.MCT_AI_LOG_PROCESS.'</option>';
         echo '<option value="'.MCT_AI_LOG_ERROR.'" '.selected($type,MCT_AI_LOG_ERROR,false).'>'.MCT_AI_LOG_ERROR.'</option>';
         echo '<option value="'.MCT_AI_LOG_ACTIVITY.'" '.selected($type,MCT_AI_LOG_ACTIVITY,false).'>'.MCT_AI_LOG_ACTIVITY.'</option>';
+        echo '<option value="'.MCT_AI_LOG_REQUEST.'" '.selected($type,MCT_AI_LOG_REQUEST,false).'>'.MCT_AI_LOG_REQUEST.'</option>';
         echo '</select>';
         echo '<input name="Filter" value="Select Filter" type="submit" class="button-secondary">';
         echo '</form></div>';
@@ -1849,7 +1869,13 @@ function mct_ai_createdb(){
 
 function mct_ai_run_mycurator(){
     //starts the mycurator processing when triggered by cron
-
+    global $mct_ai_optarray;
+    
+    if (!empty($mct_ai_optarray['ai_no_procpg'])) {
+        mct_ai_log('Blog',MCT_AI_LOG_PROCESS, 'Cron Starting MyCurator', 'Full Site');
+        mct_ai_process_site(true);
+        exit();
+    }
      //use curl so we don't have to worry about local php implementations
     if (is_multisite()){
         global $blog_id;

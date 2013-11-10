@@ -1,4 +1,4 @@
-//Javascript for Training post ajax V1.0.0
+//Javascript for Training post ajax V1.0.4
 jQuery(document).ready(function($) {
     //Bulk Drop Down entries
     if (mct_ai_train.page_type == 'admin') {
@@ -128,6 +128,10 @@ jQuery(document).ready(function($) {
             } else {
                 alert(status);
             }
+        })
+        .fail(function(data) {
+            location.reload(true); //not sure why, so lets just refresh
+            return false;    
         });
         
         return false;
@@ -179,6 +183,9 @@ jQuery(document).ready(function($) {
                 alert(status);
             }
             tb_remove();
+        }).fail(function(data) {
+            location.reload(true); //not sure why, so lets just refresh
+            return false;    
         });
     }
     
@@ -213,25 +220,42 @@ jQuery(document).ready(function($) {
         
         var new_note = jQuery('#mct-nb-notes').attr('value');
         var notebk = jQuery('select#mct-nb-select option:selected').val();
-        if (!notebk) return false;
+        var newnbstr = jQuery('#mct-nb-newnb').attr('value');
+        if (typeof notebk === 'undefined') {
+            if ((typeof newnbstr === 'undefined')) return false;
+            if ( newnbstr.length == 0 ) return false;
+        }
         var nonce = jQuery('input#_wpnonce').attr('value');
         var qstr = "notebk="+nb_post_id+"&_wpnonce="+nonce;
         var data = { qargs: qstr,
               nonce: nonce,
               note: new_note,
               nbook: notebk,
+              newnb: newnbstr,
               action: 'mct_ai_train_ajax'};
         jQuery('#saveimg-'+nb_post_id).css('display', 'inline');
         jQuery.post(mct_ai_train.ajaxurl, data, function (data) {
             var status = jQuery(data).find('response_data').text();
             jQuery('#saveimg-'+nb_post_id).css('display', 'none');
             if (status == 'Ok') {
-              remove_item(nb_post_id);
-             
+              //var newnbval = jQuery('#mct-nb-newnb').attr('value');
+              if ((typeof newnbstr === 'undefined') ) {
+                  remove_item(nb_post_id);
+                  return false;
+              }
+              if ( newnbstr.length > 0 ) {
+                  location.reload(true);
+              } else {
+                  remove_item(nb_post_id);
+              }
             } else {
                 alert(status);
             }
-        return false;
+            return false;
+        })
+        .fail(function(data) {
+            location.reload(true); //not sure why, so lets just refresh
+            return false;    
         });
     }
    

@@ -454,6 +454,7 @@ function mct_nb_addnotepg($notebk_id, $notes, $post_arr, $page) {
     global $user_id, $wpdb, $ai_sl_pages_tbl;
     get_currentuserinfo();
     //Get rid of tags in title
+    if (!$notebk_id) return false;
     $title = '';
     $cnt = preg_match('{<title>([^<]*)</title>}i',$page,$matches);
     if ($cnt) $title = $matches[1];
