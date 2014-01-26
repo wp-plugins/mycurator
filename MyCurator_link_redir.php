@@ -70,14 +70,17 @@ function mct_sl_deletefile($post_id){
     global $wpdb, $ai_sl_pages_tbl, $mct_ai_optarray;
     // Get the links from the meta data, allow for more than one
     $newlinks = get_post_meta($post_id,'mct_sl_newurl',true);
+    $ptype = get_post_type($post_id);
     if (!empty($newlinks)){
         $sql = "DELETE FROM $ai_sl_pages_tbl WHERE sl_post_id = $post_id";
         $del = $wpdb->query($sql);
         //Delete image if being saved
         mct_sl_deleteimage($post_id);
+        //Delete topic/ai class taxonomies if not target_ai type
+        if ($ptype != 'target_ai') wp_delete_object_term_relationships( $post_id, array('topic','ai_class') );
     }
     //Check for Notebook post type and delete all pages
-    if (get_post_type($post_id) == 'mct_notebk'){
+    if ($ptype == 'mct_notebk'){
         $args = array(
         'numberposts'     => -1,
         'post_type'       => 'mct_notepg',

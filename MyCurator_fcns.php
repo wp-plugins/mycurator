@@ -170,12 +170,24 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
     // Load an image pointed to by a url into the post thumbnail featured image
     // Adapted from code by Aditya Mooley from auto post thumbnail plugin
     
-
-    // Get the file name
-    $filename = substr($imgurl, (strrpos($imgurl, '/'))+1);
-    //weed out %dd in filename
-    $filename = preg_replace('{%\d\d}','-',$filename);
+    // Validate file and Get the file name
+    $validate = @getimagesize($imgurl);
+    if (!empty($validate['mime'])) { 
+        $type = $validate['mime'];
+    } else {
+        //error_log('Invalid File Type '.$filename);
+        return null;
+    }
+    $imgpath = parse_url($imgurl,PHP_URL_PATH); //ignore domain and query
+    $filename = substr($imgpath, (strrpos($imgpath, '/'))+1);
+    $filename = preg_replace('{%\d\d}','-',$filename);  //remove any url encoding for spaces etc.
+    $ext = pathinfo($filename, PATHINFO_EXTENSION);
+    if (empty($ext) && !empty($type)) {
+        $pos = strpos($type,'/');  //try to get extension from mime type
+        if ($pos) $filename .= '.'.substr($type,$pos+1); //add extension
+    }
     if (!(($uploads = wp_upload_dir(current_time('mysql')) ) && false === $uploads['error'])) {
+        //error_log('Failed to get upload dir '.$uploads['error']);
         return null;
     }
 
@@ -192,6 +204,7 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
     }
     
     if (!$file_data) {
+        //error_log('Failed to get file contents '.$imgurl);
         return null;
     }
     
@@ -201,17 +214,6 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
     $stat = stat( dirname( $new_file ));
     $perms = $stat['mode'] & 0000666;
     @ chmod( $new_file, $perms );
-
-    // Get the file type. Must to use it as a post thumbnail.
-    $wp_filetype = wp_check_filetype( $filename );
-
-    extract( $wp_filetype );
-
-    // No file type! No point to proceed further
-    if ( ( !$type || !$ext ) && !current_user_can( 'unfiltered_upload' ) ) {
-        return null;
-    }
-
     // Compute the URL
     $url = $uploads['url'] . "/$filename";
 
@@ -233,7 +235,7 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
         update_attached_file( $thumb_id, $new_file );
         return $thumb_id;
     }
-
+    //error_log('Failed to insert attachment '.$thumb_id->get_error_message());
     return null;
 }
 
@@ -301,13 +303,12 @@ function mct_ai_formatlink($post_arr){
 }
 
 
-function mct_ai_getplan(){
+function mct_ai_getplan($force = false){
     //Get the plan from cloud service
     global $mct_ai_optarray;
     if (empty($mct_ai_optarray['ai_cloud_token'])) return;
-    if (get_transient('mct_ai_getplan') == 'checked') return;  //In case we are doing a lot of work
-    include_once ('MyCurator_local_proc.php');
-    
+    if (!$force && get_transient('mct_ai_getplan') == 'checked') return;  //In case we are doing a lot of work
+    //include_once ('MyCurator_local_proc.php');
     $topic = array('topic_id' => "0"); //need a topic for cloud call
     $response = mct_ai_callcloud("GetPlan",$topic,"");
     if ($response == NULL) return false; //error already logged
@@ -318,14 +319,16 @@ function mct_ai_getplan(){
         //If Invalid Token, or Expired set plan as error, else return (and leave whatever plan we have)
         if (strpos($log['logs_msg'],"Token") !== false || strpos($log['logs_msg'],"Expired") !== false) {
             $mct_ai_optarray['ai_plan'] = serialize(array('name'=> $log['logs_msg'], 'max' => -1  ));
+            set_transient('mct_ai_getplan', 'checked',(60*5)); //Default is to wait for 5 minutes before checking
         } else {
             return false;    
         }
     } else { //No error, so set plan 
         $mct_ai_optarray['ai_plan'] = serialize(get_object_vars($response->planarr));
+        set_transient('mct_ai_getplan', 'checked',(60*60*24)); // Got a plan so wait for a day before we check again
     }
     update_option('mct_ai_options',$mct_ai_optarray);
-    set_transient('mct_ai_getplan', 'checked',300);
+    
 }
 
 
@@ -607,6 +610,7 @@ function mct_ai_get_tname_ai($post_id){
     global $wpdb, $ai_topic_tbl;
     
     $terms = get_the_terms( $post_id, 'topic' );
+    if (empty($terms)) return '';
     $tname = '';
     if (count($terms) == 1 ) { //should only be one
         //The array key is the id
@@ -634,19 +638,31 @@ function mct_ai_traintoblog($thepost, $status){
     $topic = wp_get_object_terms($thepost,'topic',array('fields' => 'names'));
     if (!empty($topic)) {
         $tname = $topic[0];  //should always only be one
-        $sql = "SELECT topic_cat, topic_tag, topic_tag_search2 FROM $ai_topic_tbl WHERE topic_name = '$tname'";
-        $row = $wpdb->get_row($sql);
+        $sql = "SELECT topic_cat, topic_tag, topic_tag_search2, topic_options FROM $ai_topic_tbl WHERE topic_name = '$tname'";
+        $row = $wpdb->get_row($sql, ARRAY_A);
+        $row = mct_ai_get_topic_options($row);
         if (!empty($row)){
             $details = array();
             $details['ID'] = $thepost;
-            $details['post_category'] = array($row->topic_cat);
-            if ($row->topic_tag_search2){
-                $details['tags_input'] = get_post_meta($thepost,'mct_ai_tag_search2', true);
+            if (!empty($row['opt_post_ctype']) && $row['opt_post_ctype'] != 'not-selected') {
+                $details['post_type'] = $row['opt_post_ctype'];
+                if (!empty($row['opt_post_ctax']) && !empty($row['opt_post_ctaxval'])) {
+                    $details['tax_input'] = array($row['opt_post_ctax'] => $row['opt_post_ctaxval']);
+                    $tax = wp_get_object_terms($thepost,'topic',array('fields' => 'slugs'));
+                    if (!empty($tax)) $details['tax_input'] = array_merge($details['tax_input'],array('topic' => $tax[0]));
+                    $tax = wp_get_object_terms($thepost,'ai_class',array('fields' => 'slugs'));
+                    if (!empty($tax)) $details['tax_input'] = array_merge($details['tax_input'],array('ai_class' => $tax[0]));
+                }
             } else {
-                $tagterm = get_term($row->topic_tag,'post_tag');
-                if (!empty($tagterm)) $details['tags_input'] = array($tagterm->name);
+                $details['post_type'] = 'post';
+                $details['post_category'] = array($row['topic_cat']);
+                if ($row['topic_tag_search2']){
+                    $details['tags_input'] = get_post_meta($thepost,'mct_ai_tag_search2', true);
+                } else {
+                    $tagterm = get_term($row['topic_tag'],'post_tag');
+                    if (!empty($tagterm)) $details['tags_input'] = array($tagterm->name);
+                }
             }
-            $details['post_type'] = 'post';
             if ($status == 'draft') {
                 $details['post_status'] = 'draft';
                 if (!empty($mct_ai_optarray['ai_now_date'])) {

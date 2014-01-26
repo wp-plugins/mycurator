@@ -3,8 +3,8 @@ Contributors: mtilly
 Donate link: 
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
-Tested up to: 3.6
-Stable tag: 2.1.0
+Tested up to: 3.8
+Stable tag: 2.1.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,7 @@ Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 * The full text, attribution link and all images for each article are available in the WordPress post editor, just click on a paragraph, list, table or image and its inserted into your blog article immediately.
 * Notebooks let you research ideas and save related articles, both from MyCurator's automated discovery and your web explorations.
 * Notebooks are like Evernote, only integrated into your WordPress Editor.
+* Curate articles to your custom post types
 * Customize article discovery to your specific niche by choosing what sources to read and what to look for in each article
 * For even more content accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
 * Get It Bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
@@ -84,6 +85,14 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 2.1.1 =
+* Curate articles to custom post types
+* Better image capture for more curated posts with images.
+* More video options to align video in the post, capture the thumbnail and shorten description to excerpt length.
+* Option to place embedded image at bottom of post.
+* Manually run selected Topics using the Run AI Process button in Topics
+* Fix formatting error in Get It and Source It with WP 3.8
 
 = 2.1.0 =
 * New Request Processing Mode provides faster background processing of articles.

@@ -11,7 +11,7 @@ add_action('wp_feed_options', 'mct_ai_set_simplepie');
 define ('MCT_AI_PIE_CACHE',3600);  
     
 
-function mct_ai_process_site($cron){
+function mct_ai_process_site($cron, $names=array()){
     //This function will process all topics for a site/blog
     //It is started from the Run AI Process button on the Topics page
     global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
@@ -28,6 +28,15 @@ function mct_ai_process_site($cron){
     $topics = $wpdb->get_results($sql, ARRAY_A);
     if (empty($topics)){
         return;
+    }
+    //Use passed in topic list if present
+    if (!empty($names)) {
+        $newtopics = array();
+        foreach ($topics as $topic) {
+            if (in_array($topic['topic_name'],$names)) $newtopics[] = $topic;
+        }
+        if (empty($newtopics)) return;
+        $topics = $newtopics;
     }
     foreach ($topics as $topic){
         if ($cron){
@@ -534,6 +543,7 @@ function mct_ai_callcloud($type,$topic,$postvals){
         $cloud_response = gzuncompress($cloud_response);
     }
     $json_response = json_decode($cloud_response);
+    
     if ($json_response == NULL) {
         mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, 'Invalid JSON Object Returned',$type);
     }
@@ -586,9 +596,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         if ($pos) {
             foreach ($matchall as $matches) {
                 $size = @getimagesize($matches[2]);
-                $filename = substr($matches[2], (strrpos($matches[2], '/'))+1); 
-                $wp_filetype = wp_check_filetype( $filename ); //chedck valid file type
-                if ($size && $size[0] >= 25 && $size[1] >= 25 && !empty($wp_filetype['type'])){  //excludes small pngs, icons, pixels
+                if ($size && $size[0] >= 25 && $size[1] >= 25 ){  //excludes small pngs, icons, pixels
                     $image = $matches[2];
                     $pos = preg_match('{<img [^>]*alt\s*=\s*("|\')([^"\']*)("|\')[^>]*>}i',$matches[0],$match);
                     if ($pos) $imgtitle = $match[2];
@@ -637,28 +645,30 @@ function mct_ai_post_entry($topic, $post_arr, $page){
             $post_content = str_replace("Click here to view full article",$mct_ai_optarray['ai_save_text'],$post_content);
         }
     }
-    $post_content = apply_filters('mct_ai_postcontent',$post_content);
+    $post_content = apply_filters('mct_ai_postcontent',$post_content, $post_arr);
     
     //Set up the values, not set are defaults
     //Get user for GetIt, if not we are in cron process so set  user for the site
+    $pa = 0;
     if (!empty($post_arr['getit'])) {
         get_currentuserinfo();
         $pa = $user_ID;
     } elseif (!empty($topic_opt['opt_post_user']) && $topic_opt['opt_post_user'] != "Not Set" ) {
         $useris = get_user_by('login',$topic_opt['opt_post_user']);
-        if ($useris) {
+        if (!empty($useris) && !empty($useris->allcaps['publish_posts'])) {
             $pa = $useris->ID;
         } else {
-            $pa = 1;
+            $pa = 0;
         }
     } elseif (!empty($mct_ai_optarray['ai_post_user'])) {
         $useris = get_user_by('login',$mct_ai_optarray['ai_post_user']);
-        if ($useris) {
+        if (!empty($useris) && !empty($useris->allcaps['publish_posts'])) {
             $pa = $useris->ID;
         } else {
-            $pa = 1;
+            $pa = 0;
         }
-    } else {        
+    } 
+    if (!$pa) {     //didn't have a user or user doesn't have publish_posts cap, so use an admin   
         $useradms = get_users(array('role' => 'administrator'));
         if (empty($useradms)){
             $pa = 1;
@@ -712,21 +722,29 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         if (!empty($post_arr['tags'])){
             update_post_meta($post_id,'mct_ai_tag_search2',$post_arr['tags']);
         }
-        $post_msg = $post_arr['classed'];  
+        $post_msg = (!empty($post_arr['classed'])) ? $post_arr['classed'] : '';  
     }
     //Active and relevant
     if ($topic['topic_status'] == 'Active' && !$rel_not_good){
-        if (empty($post_arr['tags'])){
-            $tagterm = get_term($topic['topic_tag'],'post_tag');
-            if (!empty($tagterm)) $details['tags_input'] = array($tagterm->name);
+        if (!empty($topic_opt['opt_post_ctype']) && $topic_opt['opt_post_ctype'] != 'not-selected') {
+            $details['post_type'] = $topic_opt['opt_post_ctype'];
+            if (!empty($topic_opt['opt_post_ctax']) && !empty($topic_opt['opt_post_ctaxval'])) {
+                $details['tax_input'] = array_merge($details['tax_input'],array($topic_opt['opt_post_ctax'] => $topic_opt['opt_post_ctaxval']));
+            }
         } else {
-            $details['tags_input'] = $post_arr['tags'];
+            $details['post_type'] = 'post';
+            if (empty($post_arr['tags'])){
+                $tagterm = get_term($topic['topic_tag'],'post_tag');
+                if (!empty($tagterm)) $details['tags_input'] = array($tagterm->name);
+            } else {
+                $details['tags_input'] = $post_arr['tags'];
+            }
+            $details['post_category'] = array($topic['topic_cat']);
         }
-        $details['post_category'] = array($topic['topic_cat']);
         $post_id = wp_insert_post($details);
         $post_msg = "Live";
     }
-    
+    do_action('mct_ai_trainingpost',$post_id, $post_arr);
     //update post meta
     update_post_meta($post_id,'mct_sl_origurl',array($post_arr['current_link']));
     update_post_meta($post_id,'mct_sl_newurl',array($link_redir));
@@ -744,8 +762,13 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     if ($topic['topic_type'] != 'Video' && !empty($image)){
         $thumb_id = mct_ai_postthumb($image,$post_id, $imgtitle);
     }
-    if ($topic['topic_type'] == 'Video' && !empty($image)) {
-        if (stripos($post_content,'<iframe') === false) $thumb_id = mct_ai_postthumb($image,$post_id, $imgtitle); //only if no emgedded video
+    if ($topic['topic_type'] == 'Video') {
+        if (!empty($image) && stripos($post_content,'<iframe') === false) $thumb_id = mct_ai_postthumb($image,$post_id, $imgtitle); //only if no emgedded video
+        if (empty($image) && !empty($mct_ai_optarray['ai_video_thumb']) && !empty($post_arr['yt_thumb'])) {
+            $thumb_id = mct_ai_postthumb($post_arr['yt_thumb'],$post_id, $imgtitle);
+            update_post_meta( $post_id, '_thumbnail_id', $thumb_id ); //Force as thumbnail 
+            $thumb_id = 0; //Set to 0 so we don't post again below
+        }
     }
     if ($thumb_id) {  
         if ($mct_ai_optarray['ai_save_thumb']) update_post_meta( $post_id, '_thumbnail_id', $thumb_id );
@@ -762,7 +785,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
             }
             if ($src) {
                 $imgstr = '<a href="'.$url.'"><img class="size-'.$size.' align'.$align.'" alt="'.$imgtitle.'" src="'.$src[0].'" width="'.$src[1].'" height="'.$src[2].'" /></a>';
-                $details['post_content'] = $imgstr.$post_content;
+                $details['post_content'] = (empty($mct_ai_optarray['ai_image_bottom'])) ? $imgstr.$post_content : $post_content.$imgstr;
                 $details['ID'] = $post_id;
                 wp_update_post($details);
             }
@@ -802,8 +825,13 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
         $pos = preg_match('{<iframe title="Video Player"[^>]*>}',$page,$matches);
         if ($pos) {
             $post_arr['article'] = $matches[0]."</iframe><br />"; //embed the iframe
+            //set height/width
             $post_arr['article'] = str_replace('width="250"', 'width="'.$mct_ai_optarray['ai_video_width'].'"',$post_arr['article']);
             $post_arr['article'] = str_replace('height="250"', 'height="'.$mct_ai_optarray['ai_video_height'].'"',$post_arr['article']);
+            //set alignment
+            if (!empty($mct_ai_optarray['ai_video_align']) && $mct_ai_optarray['ai_video_align'] != 'none') {
+                $post_arr['article'] = str_replace('class="youtube-player"','class="youtube-player align'.$mct_ai_optarray['ai_video_align'].'"',$post_arr['article']);
+            }
             $pos = preg_match('{src="([^"]*)"}',$post_arr['article'],$matches);
             if ($pos){
                 //get rid of autoplay tags if there
@@ -820,17 +848,30 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
                     $post_arr['article'] = preg_replace('{(src=")([^"]*)(")}','$1'.$newstr.'$3',$post_arr['article']);
                 }
             }
-            //Try to get youtube description
-            if (!empty($mct_ai_optarray['ai_video_desc'])) {
+            //Try to get youtube description and thumbnail if options set
+            if (!empty($mct_ai_optarray['ai_video_desc']) || !empty($mct_ai_optarray['ai_video_thumb'])) {
                 if (preg_match('{youtube.com/(v|embed)/([^"|\?]*)("|\?)}i', $post_arr['article'], $match)) {
                     $video_id = $match[2];
-                    $res =  wp_remote_get("http://gdata.youtube.com/feeds/api/videos/".$video_id."?v=2");
-                    if ( is_wp_error( $res ) ) return;
-                    $pos = preg_match('{<media:description([^>]*)>([^<]*)</media:description>}',$res['body'], $match);
-                    if (!$pos) return;
-                    //try to activate links in the text
-                    $desc = preg_replace('{https?://([^\s]*)}','<a href="$0" target="_blank">$0</a>',$match[2]);
-                    $post_arr['article'] .= '<p class="mct_ai_ytdesc">'.$desc.'</p>';
+                    if(!empty($mct_ai_optarray['ai_video_thumb'])) $post_arr['yt_thumb'] = "http://img.youtube.com/vi/$video_id/0.jpg";
+                    if (!empty($mct_ai_optarray['ai_video_desc']) && $excerpt_length){
+                        $res =  wp_remote_get("http://gdata.youtube.com/feeds/api/videos/".$video_id."?v=2");
+                        if ( is_wp_error( $res ) ) return;
+                        $pos = preg_match('{<media:description([^>]*)>([^<]*)</media:description>}',$res['body'], $match);
+                        if (!$pos) return;
+                        //shorten to excerpt length
+                        $excerpt = $match[2];
+                        $excerpt = preg_replace('/\s+/', ' ', $excerpt);  //get rid of extra spaces
+                        //Get the word count specified
+                        $words = explode(' ', $excerpt, $excerpt_length + 1);
+                        if ( count($words) > $excerpt_length ) {
+                                array_pop($words);
+                                array_push($words, '[...]');
+                                $excerpt = implode(' ', $words);
+                        }
+                        //try to activate links in the text
+                        $desc = preg_replace('{https?://([^\s]*)}','<a href="$0" target="_blank">$0</a>',$excerpt);
+                        $post_arr['article'] .= '<p class="mct_ai_ytdesc">'.$desc.'</p>';
+                    }
                 } 
             }
             return;

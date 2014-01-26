@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 2.1.0
+ * Version: 2.1.1
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -25,9 +25,14 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 /*
- * Filters Available:
- * apply_filter('mct_ai_postcontent',$post_content);
+ * Filters/Actions Available:
+ * apply_filter('mct_ai_postcontent',$post_content, $post_arr);
  *   This filter lets you modify the excerpted content of the MyCurator post, normally a blockquoted excerpt and the article link
+ *   you have access to a range of items in the $post_arr array
+ * do_action('mct_ai_trainingpost',$post_id, $post_arr);
+ *   This action lets you perform additional actions after the new article post is created
+ *   $post_id is the newly created post
+ *   you have access to a range of items in the $post_arr array
  */
 
 //Define some constants
@@ -36,7 +41,7 @@ define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
 define ('MCT_AI_LOG_REQUEST','REQUEST');
-define ('MCT_AI_VERSION', '2.1.0');
+define ('MCT_AI_VERSION', '2.1.1');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -275,7 +280,7 @@ function mct_ai_firstpage() {
             <?php } else { //end no topic, start active ?>
             
             <h2>MyCurator Plan Information</h2>
-            <?php mct_ai_getplan(); 
+            <?php mct_ai_getplan(true); //Force plan update so we don't have to wait a day in case they upgraded
             $plan_display = mct_ai_showplan(true,false); 
             echo $plan_display;
             
@@ -316,6 +321,7 @@ function mct_ai_firstpage() {
                                                         <li>- <a href="http://www.target-info.com/training-videos/" >Link to MyCurator Training Videos</a></li>
                                                         <li>- MyCurator <a href="http://www.target-info.com/documentation/" >Documentation</a></li>
                                                         <li>- MyCurator <a href="http://wordpress.org/support/plugin/mycurator" >support forum</a></li>
+                                                        <li>- MyCurator <a href="mailto:support@target-info.com" >Support Email</a></li>
                                                         <?php if (empty($mct_ai_optarray['ai_cloud_token'])) { ?>
                                                         <li>- MyCurator API Key: <a href="http://www.target-info.com/pricing/" />Get API Key</a></li><?php } ?>
                                                         <li>- <a href="http://www.target-info.com/myaccount/?token=<?php echo $token; ?>" >My Account</a> at Target Info</li>
@@ -407,9 +413,18 @@ function mct_ai_mainpage() {
     // run ai process?
     if (isset($_POST['run_ai'])){
         if (!current_user_can('manage_options')) wp_die("Insufficient Privelege");
-        check_admin_referer('mct_ai_runai','runaiclick');   
+        check_admin_referer('mct_ai_runai','runaiclick');  
+        //Get Values from Db
+        $sql = "SELECT `topic_name`, `topic_id` FROM $ai_topic_tbl";
+        $topics = $wpdb->get_results($sql, ARRAY_A);
+        $names = array();
+        if (!empty($topics)) {
+            foreach ($topics as $topic) {
+                if (!empty($_POST['runai-'.$topic['topic_id']])) $names[] = $topic['topic_name'];
+            }
+        }
         if (!empty($mct_ai_optarray['ai_page_rqst'])) mct_ai_process_request(); //Get Requests
-        mct_ai_process_site(false);
+        if (!empty($names)) mct_ai_process_site(false, $names);
         echo '<div class="wrap">';
         echo '<h2>MyCurator Process Completed</h2></div>';
         exit;
@@ -420,8 +435,8 @@ function mct_ai_mainpage() {
     $editpage = substr($ruri,0,$pos) .'_newtopic&edit=';
     $sourcepage = substr($ruri,0,$pos) . '_topicsource&edit=';
     //Get Values from Db
-    $sql = "SELECT `topic_name`, `topic_status`, `topic_type`, `topic_cat`, `topic_tag`, `topic_sources`, `topic_options`
-            FROM $ai_topic_tbl";
+    $sql = "SELECT `topic_name`, `topic_status`, `topic_type`, `topic_cat`, `topic_tag`, `topic_sources`, `topic_options`, `topic_id`
+            FROM $ai_topic_tbl ORDER BY topic_name";
     $edit_vals = $wpdb->get_results($sql, ARRAY_A);
     //render the page
     ?>
@@ -432,8 +447,10 @@ function mct_ai_mainpage() {
         <p><input name="run_ai" type="hidden" value="run_ai" /></p>
         <?php wp_nonce_field('mct_ai_runai','runaiclick'); ?>
         <input name="run_ai_button" value="Run AI Process" type="submit" class="button-secondary">
+        &nbsp;&nbsp;Manually run the process to gather content.  You can clear the Process checkbox on topics that you do not wish to manually process. 
+        All outstanding page requests will also be processed (if you are using Page Request Mode).
         <br /><br />
-    </form>
+   
     <h4>Each of the MyCurator topics are listed below.  Click the Title to view or change any topic.  Click the Source field to add or update Sources.</h4>
         <table class="widefat" >
             <thead>
@@ -441,19 +458,29 @@ function mct_ai_mainpage() {
                 <th>Topic</th>
                 <th>Type</th>
                 <th>Status</th>
-                <th>Assigned Category</th>
+                <th>Category or Post Type</th>
                 <th>Assigned Author</th>
                 <th>Sources</th>
+                <th class="column-cb check-column">Process
+                    <input id="cb-select-all" type="checkbox" checked="checked">
+                </th>
                 </tr>
             </thead>
             <tbody>
             <?php foreach ($edit_vals as $row){
                 $row = mct_ai_get_topic_options($row);
+                //Custom Type?
+                if (!empty($row['opt_post_ctype']) && $row['opt_post_ctype'] != 'not-selected' ) {
+                    $ctype = get_post_type_object($row['opt_post_ctype']);
+                    $catstr = $ctype->labels->singular_name;
+                } else {
+                    $catstr = get_cat_name($row['topic_cat']);
+                }
                 echo('<tr>');
                 echo('<td><a href="'.$editpage.trim($row['topic_name']).'" >'.$row['topic_name'].'</a></td>');
                 echo('<td>'.$row['topic_type'].'</td>');
                 echo('<td>'.mct_ai_status_display($row['topic_status'],'display').'</td>');
-                echo('<td>'.get_cat_name($row['topic_cat']).'</td>');
+                echo('<td>'.$catstr.'</td>');
                 echo('<td>'.$row['opt_post_user'].'</td>');
                 if (empty($row['topic_sources'])){
                     $source_fld = "Add Sources";
@@ -461,10 +488,13 @@ function mct_ai_mainpage() {
                     $source_fld = "Edit Sources";
                 }
                 echo('<td><a href="'.$sourcepage.trim($row['topic_name']).'" >'.$source_fld.'</a></td>');
+                //Run AI checkbox
+                echo '<td class="check-column"><input name="runai-'.$row['topic_id'].'" type="checkbox" value="1" checked="checked"  /></td>';
                 echo('</tr>');
             } ?>
            </tbody>
         </table>
+     </form>
     <?php mct_ai_getplan(); echo mct_ai_showplan(true,false); ?>
     </div>
 <?php
@@ -484,6 +514,7 @@ function mct_ai_topicpage() {
     $edit_vals = array();
     $do_report = false;
     $no_more = false;
+    $custom_types = array();
     
     //Set up user login dropdown
     $authusers = get_users(array('role' => 'author'));
@@ -497,6 +528,7 @@ function mct_ai_topicpage() {
     $cats = array (
         'orderby' => 'name',
         'hide_empty' => FALSE,
+        'hierarchical' => true,
         'name' => 'topic_cat'
     );
     $tags = array (
@@ -506,6 +538,13 @@ function mct_ai_topicpage() {
         'show_option_none' => 'No Tags',
         'taxonomy' => 'post_tag'
     );
+    //Get custom types/taxonomies
+    if (!empty($mct_ai_optarray['ai_custom_types'])) {
+        $custom_types = maybe_unserialize($mct_ai_optarray['ai_custom_types']);
+        $custom_types = array_reverse($custom_types, true);
+        $custom_types['not-selected'] = '';
+        $custom_types = array_reverse($custom_types, true);
+    }
     //Set up topic sources - get all link categories
     $taxname = 'link_category';
     $terms = get_terms($taxname);
@@ -517,7 +556,9 @@ function mct_ai_topicpage() {
  
         //Clean up domains
         $valid_str = '';
-        $varray = explode("\n",$_POST['topic_skip_domains']);
+        $varray = $_POST['topic_skip_domains'];
+        $varray = str_replace(" ","\n",$varray); //change spaces to line breaks
+        $varray = explode("\n",$varray);
         foreach ($varray as $vstr){
             $vstr = trim(sanitize_text_field($vstr));
             if (strlen($vstr) != 0){
@@ -543,8 +584,22 @@ function mct_ai_topicpage() {
             'topic_sources' => $tsource,
             'opt_post_user' => $_POST['opt_post_user'],
             'opt_image_filter' => strval(absint((isset($_POST['opt_image_filter']) ? $_POST['opt_image_filter'] : 0) )),
+            'opt_post_ctype' => (!empty($_POST['opt_post_ctype']) ? $_POST['opt_post_ctype'] : 'not-selected') ,
             'topic_min_length' => strval(absint($_POST['topic_min_length']))
         );        
+        //Set the taxonomy based on the custom type chosen
+        if (array_key_exists($edit_vals['opt_post_ctype'],$custom_types)) {
+            $edit_vals['opt_post_ctax'] = $custom_types[$edit_vals['opt_post_ctype']];
+            if (!empty($edit_vals['opt_post_ctax']) && $_POST[$edit_vals['opt_post_ctax']] != '-1') {
+                $theterm = get_term($_POST[$edit_vals['opt_post_ctax']], $edit_vals['opt_post_ctax']);
+                $edit_vals['opt_post_ctaxval'] = $theterm->slug;
+            } else { 
+                $edit_vals['opt_post_ctaxval'] = '';
+            }
+        } else {
+            $edit_vals['opt_post_ctax'] = '';
+            $edit_vals['opt_post_ctaxval'] = '';
+        }
         // Get category create name
         $createcat = trim(sanitize_text_field((isset($_POST['topic_createcat']) ? $_POST['topic_createcat'] : '')));
         //Get the topic name and validate
@@ -571,10 +626,17 @@ function mct_ai_topicpage() {
             //Save options into db field
             $edit_vals['topic_options'] = maybe_serialize(array(
                 'opt_post_user' => $edit_vals['opt_post_user'],
-                'opt_image_filter' => $edit_vals['opt_image_filter']));
+                'opt_image_filter' => $edit_vals['opt_image_filter'],
+                'opt_post_ctype' => $edit_vals['opt_post_ctype'],
+                'opt_post_ctax' => $edit_vals['opt_post_ctax'],
+                'opt_post_ctaxval' => $edit_vals['opt_post_ctaxval']
+                ));
             //unset opt fields not in db
             unset($edit_vals['opt_post_user']);
             unset($edit_vals['opt_image_filter']);            
+            unset($edit_vals['opt_post_ctype']);
+            unset($edit_vals['opt_post_ctax']);
+            unset($edit_vals['opt_post_ctaxval']);
             if ($_GET['updated'] == 'true'){
                 //Do an update
                 $where = array('topic_name' => $topic_name);
@@ -636,7 +698,6 @@ function mct_ai_topicpage() {
         $sources = array_map('trim',explode(',',$edit_vals['topic_sources']));
         //Set up options into edit vals
         $edit_vals = mct_ai_get_topic_options($edit_vals);
-        
     } else {
         //New topic, if error, don't reset values
         $curstat = mct_ai_status_display('Training','display');
@@ -655,6 +716,9 @@ function mct_ai_topicpage() {
             $edit_vals['topic_min_length'] = '';
             $edit_vals['topic_createcat'] = '';
             $edit_vals['opt_post_user'] = 'Not Set';
+            $edit_vals['opt_post_ctype'] = 'not-selected';
+            $edit_vals['opt_post_ctax'] = '';
+            $edit_vals['opt_post_ctaxval'] = '';
             $edit_vals['opt_image_filter'] = '';
         } else {
             //error, so reset selected cat, tag, sources
@@ -742,7 +806,8 @@ function mct_ai_topicpage() {
             </tr> 
             <tr>
                 <th scope="row">Skip These Domains</th>
-                <td><textarea id='topic_skip_domains' rows='5' cols='100' name='topic_skip_domains'><?php echo $edit_vals['topic_skip_domains'] ?></textarea></td>    
+                <td><textarea id='topic_skip_domains' rows='5' cols='100' name='topic_skip_domains'><?php echo $edit_vals['topic_skip_domains'] ?></textarea>
+                <span>&nbsp;<em>One Domain per Line</em></span></td>    
             </tr>
             <tr>
                 <th scope="row">Choose Type</th>
@@ -786,6 +851,37 @@ function mct_ai_topicpage() {
                 <th scope="row">OR Assign to a Single Tag</th>
                 <td><?php wp_dropdown_categories($tags); ?><td>    
             </tr> 
+            <!-- Custom Post Type Selection -->
+            <?php if (!empty($custom_types)) { ?>
+                <tr><td><h3>Custom Post Type Option</h3></td>
+                    <td>Category and Tags above will be ignored if one of these is chosen</td></tr>
+                <?php 
+                foreach ($custom_types as $ctype_key => $ctax_key) { 
+                    if ($ctype_key != 'not-selected' ) {
+                        $ctype = get_post_type_object($ctype_key); 
+                    } else {
+                        $ctype = new stdClass();  //build the not selected class
+                        $ctype->name = 'not-selected';
+                        $ctype->labels->singular_name = 'Not Selected';
+                    }
+                    $ctax = array (
+                        'orderby' => 'name',
+                        'name' => $ctax_key,
+                        'hide_empty' => FALSE,
+                        'show_option_none' => 'No Value',
+                        'taxonomy' => $ctax_key
+                    );
+                    if (!empty($edit_vals['opt_post_ctaxval'])) {
+                        $cterm = get_term_by('slug', $edit_vals['opt_post_ctaxval'], $ctax_key);
+                        if (!empty($cterm)) $ctax['selected'] = $cterm->term_id;
+                    }
+                    ?>
+                    <tr>
+                        <td><input name="opt_post_ctype" type="radio" value="<?php echo $ctype->name; ?>" <?php checked($edit_vals['opt_post_ctype'],$ctype->name); ?> />
+                        <?php echo $ctype->labels->singular_name; ?></td>
+                        <td><?php if (!empty($ctax_key)) wp_dropdown_categories($ctax); ?></td> 
+                    </tr>
+                 <?php } } //foreach and if custom types ?>
         </table>
         <!-- Sources Selection -->
         <h3>Select Sources for this Topic</h3>
@@ -860,7 +956,13 @@ function mct_ai_optionpage() {
    $allusers = get_users(array('role' => 'editor'));
    $moreusers = get_users(array('role' => 'administrator'));
    $allusers = array_merge($moreusers,$allusers);
-   
+   //Get custom post types
+   $args = array(
+      'public'   => true,
+      '_builtin' => false
+
+    );
+    $custom_types = get_post_types($args,'objects', 'and');
     if (isset($_POST['Submit']) ) {
         //create db just in case
          //mct_ai_createdb();
@@ -875,7 +977,22 @@ function mct_ai_optionpage() {
         if ($opt_update['ai_train_days'] > 90) $opt_update['ai_train_days'] = 90;
         if (empty($opt_update['ai_lookback_days'])) $opt_update['ai_lookback_days'] = 7;
         if ($opt_update['ai_lookback_days'] > 90) $opt_update['ai_lookback_days'] = 90;
-        
+        //Custom Post Types handling
+        if (!empty($custom_types)) {
+            $types_array = array();
+            foreach ($custom_types as $ctype) {
+                if (!empty($_POST[$ctype->name])) {
+                    if (!empty($_POST['ctax-'.$ctype->name])) {
+                        $types_array[$ctype->name] = $_POST['ctax-'.$ctype->name];
+                    } else {
+                        $types_array[$ctype->name] = '';
+                    }
+                }
+            }
+            if (!empty($types_array)) {
+                $opt_update['ai_custom_types'] = maybe_serialize($types_array);
+            }
+        }
         update_option('mct_ai_options',$opt_update);
         $msg = 'Options have been updated';
         //Set up cron for auto processing
@@ -933,7 +1050,11 @@ function mct_ai_optionpage() {
     }
     //Get Options
     $cur_options = get_option('mct_ai_options');
-    
+    //Explode Custom Types
+    $cur_types = array();
+    if (!empty($cur_options['ai_custom_types'])){
+        $cur_types = maybe_unserialize($cur_options['ai_custom_types']);
+    }
     ?>
     <script>
     //<![CDATA[
@@ -969,7 +1090,7 @@ function mct_ai_optionpage() {
                     <tr><th><strong>Basic Settings</strong></th>
                 <td> </td></tr>
                 <tr>
-                    <th scope="row">Turn on MyCurator?</th>
+                    <th scope="row">Turn on MyCurator Background Process?</th>
                     <td><input name="ai_on" type="checkbox" id="ai_on" value="1" <?php checked('1', $cur_options['ai_on']); ?>  /></td>    
                 </tr>
                 <tr>
@@ -1001,6 +1122,10 @@ function mct_ai_optionpage() {
                         <input name="ai_img_size" type="radio" value="large" <?php checked('large', $cur_options['ai_img_size']); ?>  /> Large
                         <input name="ai_img_size" type="radio" value="full" <?php checked('full', $cur_options['ai_img_size']); ?>  /> Full Size
                     </td>    
+                </tr> 
+                <tr>
+                    <th scope="row">&raquo; Insert at Bottom of Post</th>
+                    <td><input name="ai_image_bottom" type="checkbox" id="ai_image_bottom" value="1" <?php checked('1', $cur_options['ai_image_bottom']); ?>  /></td>    
                 </tr> 
                 <tr>
                     <th scope="row">Use Post Title for Image Title & Alt Tag</th>
@@ -1060,7 +1185,7 @@ function mct_ai_optionpage() {
                     <th scope="row">Make Post Date 'Immediately' when Made Live</th>
                     <td><input name="ai_now_date" type="checkbox" id="ai_now_date" value="1" <?php checked('1', $cur_options['ai_now_date']); ?>  /></td>    
                 </tr>
-                <tr><th>Video -----------------</th><td><strong>The following options Only apply to Topics with a type of Video.</strong></td></tr>
+                <tr><th><strong>Video -----------------</strong></th><td><strong>The following options Only apply to Topics with a type of Video.</strong></td></tr>
                 <tr>
                     <th scope="row">Embed Video in Post for Video Topic?</th>
                     <td><input name="ai_embed_video" type="checkbox" id="ai_embed_video" value="1" <?php checked('1', $cur_options['ai_embed_video']); ?>  /></td>     
@@ -1069,7 +1194,15 @@ function mct_ai_optionpage() {
                     <th scope="row">&raquo;Size of Embed Iframe</th>
                     <td>Width <input name="ai_video_width" type="text" id="ai_video_width" size ="5" value="<?php echo $cur_options['ai_video_width']; ?>"  />&nbsp;
                         Height <input name="ai_video_height" type="text" id="ai_video_height" size ="5" value="<?php echo $cur_options['ai_video_height']; ?>"  /></td>    
-                </tr>  
+                </tr>
+                <tr>
+                    <th scope="row">&raquo; Video Alignment</th>
+                    <td><input name="ai_video_align" type="radio" value="none" <?php checked('none', $cur_options['ai_video_align']); ?>  /> None
+                        <input name="ai_video_align" type="radio" value="center" <?php checked('center', $cur_options['ai_video_align']); ?>  /> Center
+                        <input name="ai_video_align" type="radio" value="left" <?php checked('left', $cur_options['ai_video_align']); ?>  /> Left
+                        <input name="ai_video_align" type="radio" value="right" <?php checked('right', $cur_options['ai_video_align']); ?>  /> Right                        
+                    </td>    
+                </tr> 
                 <tr>
                     <th scope="row">Insert Description into Post for YouTube Videos?</th>
                     <td><input name="ai_video_desc" type="checkbox" id="ai_video_desc" value="1" <?php checked('1', $cur_options['ai_video_desc']); ?>  /></td>     
@@ -1078,6 +1211,37 @@ function mct_ai_optionpage() {
                     <th scope="row">Do Not add link to embedded video.</th>
                     <td><input name="ai_video_nolink" type="checkbox" id="ai_video_nolink" value="1" <?php checked('1', $cur_options['ai_video_nolink']); ?>  /></td>     
                 </tr> 
+                 <tr>
+                    <th scope="row">Capture YouTube Thumbnail as Featured Image</th>
+                    <td><input name="ai_video_thumb" type="checkbox" id="ai_video_thumb" value="1" <?php checked('1', $cur_options['ai_video_thumb']); ?>  />
+                    <span>&nbsp;<em>For use when embedded video not shown on Home page</em></span></td>     
+                </tr> 
+                <?php 
+                if (!empty($custom_types)) {
+                ?>
+                <tr><th><strong>Custom Post Types ----</strong></th><td><strong>Choose Allowed Custom Posts Types for Topics Below.</strong></td></tr>
+                <?php foreach ($custom_types as $ctype) { ?>
+                    <tr>
+                        <th scope="row"><?php echo $ctype->labels->singular_name; ?></th>
+                        <td><input name="<?php echo $ctype->name; ?>" type="checkbox" id="<?php echo $ctype->name; ?>" value="1" <?php checked('1', array_key_exists($ctype->name,$cur_types)); ?>  /></td>     
+                    </tr> 
+                    <?php if (!empty($ctype->taxonomies)) { ?>
+                    <tr>
+                        <th scope="row">>>Taxonomy for Posts</th>
+                            <?php
+                            echo '<td>';
+                            $thistax = (!empty($cur_types[$ctype->name])) ? $cur_types[$ctype->name] : ''; 
+                            //None option
+                            ?>
+                            <input name="ctax-<?php echo $ctype->name; ?>" type="radio" value="" <?php checked('', $thistax); ?>  /> None
+                            <?php
+                            foreach ($ctype->taxonomies as $ctax) { 
+                               $taxobj = get_taxonomy($ctax);?>
+                               <input name="ctax-<?php echo $ctype->name; ?>" type="radio" value="<?php echo $ctax; ?>" <?php checked($ctax, $thistax); ?>  /> <?php echo $taxobj->labels->singular_name; ?>
+                        <?php } echo '</td>'; //Foreach taxonomies ?>
+                    </tr> 
+                   <?php } //end if taxonomies ?>
+                <?php }  } //end foreach & custom types ?>
                 </table>
             </div>
             <div id="tabs-3">
@@ -1243,7 +1407,7 @@ function mct_ai_setoptions($default) {
             'ai_cron_period' => ($default) ? 6 : absint($_POST['ai_cron_period']),
             'ai_keep_good_here' => ($default) ? 1 : absint((isset($_POST['ai_keep_good_here']) ? $_POST['ai_keep_good_here'] : 0)),
             'ai_excerpt' => ($default) ? 50 : absint($_POST['ai_excerpt']),
-            'ai_nosave_excerpt' => ($default) ? 0 : absint((isset($_POST['ai_nosave_excerpt']) ? $_POST['ai_nosave_excerpt'] : 0)),
+            'ai_nosave_excerpt' => ($default) ? 1 : absint((isset($_POST['ai_nosave_excerpt']) ? $_POST['ai_nosave_excerpt'] : 1)),
             'ai_show_orig' => ($default) ? 1 : absint((isset($_POST['ai_show_orig']) ? $_POST['ai_show_orig'] : 0)),
             'ai_orig_text' => ($default) ? 'Click here to view original web page at' : trim(sanitize_text_field($_POST['ai_orig_text'])),
             'ai_save_text' => ($default) ? 'Click here to view full article' : trim(sanitize_text_field($_POST['ai_save_text'])),
@@ -1266,8 +1430,10 @@ function mct_ai_setoptions($default) {
             'ai_embed_video' => ($default) ? 1 : absint((isset($_POST['ai_embed_video']) ? $_POST['ai_embed_video'] : 0)),
             'ai_video_width' => ($default) ? 400 : absint($_POST['ai_video_width']),
             'ai_video_height' => ($default) ? 300 : absint($_POST['ai_video_height']),
+            'ai_video_align' => ($default) ? 'none' : trim(sanitize_text_field($_POST['ai_video_align'])),
             'ai_video_desc' => ($default) ? 0 : absint((isset($_POST['ai_video_desc']) ? $_POST['ai_video_desc'] : 0)),
             'ai_video_nolink' => ($default) ? 0 : absint((isset($_POST['ai_video_nolink']) ? $_POST['ai_video_nolink'] : 0)),
+            'ai_video_thumb' => ($default) ? 0 : absint((isset($_POST['ai_video_thumb']) ? $_POST['ai_video_thumb'] : 0)),
             'ai_line_brk' => ($default) ? 0 : absint((isset($_POST['ai_line_brk']) ? $_POST['ai_line_brk'] : 0)),
             'ai_hide_menu' => ($default) ? 0 : absint((isset($_POST['ai_hide_menu']) ? $_POST['ai_hide_menu'] : 0)),
             'ai_image_title' => ($default) ? 1 : absint((isset($_POST['ai_image_title']) ? $_POST['ai_image_title'] : 0)),
@@ -1277,6 +1443,8 @@ function mct_ai_setoptions($default) {
             'ai_plan' => ($default) ? '' : $mct_ai_optarray['ai_plan'],
             'ai_no_procpg' => ($default) ? 1 : absint((isset($_POST['ai_no_procpg']) ? $_POST['ai_no_procpg'] : 0)),
             'ai_page_rqst' => ($default) ? 1 : absint((isset($_POST['ai_page_rqst']) ? $_POST['ai_page_rqst'] : 0)),
+            'ai_image_bottom' => ($default) ? 0 : absint((isset($_POST['ai_image_bottom']) ? $_POST['ai_image_bottom'] : 0)),
+            'ai_custom_types' => ($default) ? '' : '', //Not set by post, special processing
             'MyC_version' => ($default) ? MCT_AI_VERSION : MCT_AI_VERSION
         );
         return $opt_update;
@@ -1323,7 +1491,7 @@ function mct_ai_topicsource() {
     $terms = get_terms($taxname);
     //Get all topics for dropdown
     $sql = "SELECT `topic_name`
-            FROM $ai_topic_tbl";
+            FROM $ai_topic_tbl ORDER BY topic_name";
     $topic_vals = $wpdb->get_results($sql, ARRAY_A);
     ?>
     <div class='wrap'>
@@ -1345,7 +1513,8 @@ function mct_ai_topicsource() {
 	<input name="Select" value="Select Topic" type="submit" class="button-secondary" />
         <em>Choose Topic and Click Select Topic to Edit Sources for that Topic</em>
    </form>
-<?php if (!empty($tname)){ ?>
+<?php if (!empty($tname)){ 
+          if (!empty($terms)) {?>
    <form name="sources" method='post'> 
        <h4>Select Each Source Below</h4>
        <table class="form-table" >
@@ -1364,7 +1533,10 @@ function mct_ai_topicsource() {
        <input name="Submit" value="Submit" type="submit" class="button-primary"></p>
    </form>
     
-<?php } ?>    
+<?php } else {
+          echo 'No Sources Found. See our <a href="http://www.target-info.com/training-videos/#sources" >Sources</a> video and <a href="http://www.target-info.com/documentation-2/documentation-sources/" >Sources Documentation</a>';
+      }
+} ?>    
     </div>
 <?php
 }
@@ -1390,7 +1562,7 @@ function mct_ai_removepage() {
     }
     //Get the topics
     $sql = "SELECT `topic_name`, `topic_type`, `topic_cat`, `topic_tag`
-            FROM $ai_topic_tbl";
+            FROM $ai_topic_tbl  ORDER BY topic_name";
            // WHERE `topic_status` = 'Inactive'";
     $edit_vals = $wpdb->get_results($sql, ARRAY_A);
 
@@ -1985,6 +2157,9 @@ function mct_ai_get_topic_options($edit_vals){
     $allopts = maybe_unserialize($edit_vals['topic_options']);
     $edit_vals['opt_post_user'] = $allopts['opt_post_user'];
     $edit_vals['opt_image_filter'] = $allopts['opt_image_filter'];
+    $edit_vals['opt_post_ctype'] = (empty($allopts['opt_post_ctype'])) ? "not-selected" : $allopts['opt_post_ctype'];
+    $edit_vals['opt_post_ctax'] = (empty($allopts['opt_post_ctax'])) ? "" : $allopts['opt_post_ctax'];
+    $edit_vals['opt_post_ctaxval'] = (empty($allopts['opt_post_ctaxval'])) ? "" : $allopts['opt_post_ctaxval'];
     return $edit_vals;
 }
 
