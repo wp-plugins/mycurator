@@ -148,8 +148,19 @@ function mct_ai_register(){
         //Need to keep these for those who skip updates until prior versions to "Added Ver" are not supported
         if (!isset($mct_ai_optarray['ai_no_procpg'])) $mct_ai_optarray['ai_no_procpg'] = 0;// Added 2.1
         if (!isset($mct_ai_optarray['ai_page_rqst'])) $mct_ai_optarray['ai_page_rqst'] = 0;// Added 2.1
+        if (!empty($mct_ai_optarray['ai_plan'])) {
+            $plan = unserialize($mct_ai_optarray['ai_plan']);
+            if ($plan['max'] == 1){
+                //Upgrade single topic customers to full site and request processing
+                $mct_ai_optarray['ai_no_procpg'] = 1;// Added 2.1.1 
+                $mct_ai_optarray['ai_page_rqst'] = 1;// Added 2.1.1
+            }
+        }
         if (!isset($mct_ai_optarray['ai_img_align'])) $mct_ai_optarray['ai_img_align'] = 'left'; // Added 2.1
         if (!isset($mct_ai_optarray['ai_img_size'])) $mct_ai_optarray['ai_img_size'] = 'thumbnail'; // Added 2.1
+        if (!isset($mct_ai_optarray['ai_video_thumb'])) $mct_ai_optarray['ai_video_thumb'] = 0; // Added 2.1.1
+        if (!isset($mct_ai_optarray['ai_video_align'])) $mct_ai_optarray['ai_video_align'] = 'none'; // Added 2.1.1
+        if (!isset($mct_ai_optarray['ai_image_bottom'])) $mct_ai_optarray['ai_image_bottom'] = 0; // Added 2.1.1
         wp_insert_term('not sure','ai_class'); // Added 2.1
         wp_insert_term('good','ai_class');  //Added 2.1
         wp_insert_term('bad','ai_class');  //Added 2.1
@@ -422,7 +433,7 @@ function target_ai_filter_post_type_request( $query ) {
       $var = &$query->query_vars[$tax_slug];
       if ( isset( $var ) ) {
         $term = get_term_by( 'id', $var, $tax_slug );
-        $var = $term->slug;
+        if (!empty($term)) $var = $term->slug;
       }
     }
     //Check for author filter

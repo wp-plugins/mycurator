@@ -243,7 +243,7 @@ jQuery(document).ready(function($) {
         <input type="hidden" id="save-url" name="save-url" value="<?php echo  $url ; ?>" />
         <input type="hidden" id="title" name="title" value="<?php echo  $title ; ?>" />
         
-	<div class="posting">
+	<div class="mct-posting">
 
 		<div id="wphead">
 			<!-- <img id="header-logo" src="<?php echo esc_url( includes_url( 'images/blank.gif' ) ); ?>" alt="" width="16" height="16" /> -->
@@ -283,7 +283,7 @@ jQuery(document).ready(function($) {
         <?php 
         //Get Topics
         if (!empty($mct_ai_optarray['MyC_version'])){
-            $sql = "SELECT `topic_name`, `topic_options` FROM $ai_topic_tbl WHERE topic_status != 'Inactive'";
+            $sql = "SELECT `topic_name`, `topic_options` FROM $ai_topic_tbl WHERE topic_status != 'Inactive' ORDER BY topic_name";
             $topics = $wpdb->get_results($sql, ARRAY_A); 
             if (! current_user_can('edit_others_posts')) {
                 //Reduce topics to what this author can see

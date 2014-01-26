@@ -166,7 +166,7 @@ jQuery(document).ready(function($) {
         <input type="hidden" id="save-url" name="save-url" value="<?php echo  $args['save-url'] ; ?>" />
         <input type="hidden" id="rss-url" name="rss-url" value="<?php echo  $args['rss-url'] ; ?>" />
         
-	<div class="posting">
+	<div class="mct-posting">
 
 		<div id="wphead">
 			<h1>

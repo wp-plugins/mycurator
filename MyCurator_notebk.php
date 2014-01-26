@@ -546,6 +546,20 @@ function mct_nb_metaboxes(){
         add_action("admin_print_scripts-{$hook_suffix}", 'mct_ai_showpg_queue');
 
     }
+    //Add saved page, notebooks for custom types/taxonomies
+    if (!empty($mct_ai_optarray['ai_custom_types'])) {
+        $custom_types = maybe_unserialize($mct_ai_optarray['ai_custom_types']);
+        foreach ($custom_types as $key => $val) {
+            if ($key == $post_type) {  //This post type is set in Options, so add metaboxes
+                //Add the showpage metabox and js/css
+                add_meta_box('mct_ai_slpage','Saved Page'.$trainpage,'mct_ai_showpage',$key,'normal','high');
+                //add the css and js only on the pages where we need it
+                add_action("admin_print_scripts-{$hook_suffix}", 'mct_ai_showpg_queue');
+                //Add Notebooks metabox
+                if (!empty($notebks)) add_meta_box('mct-nb-choosenb','Notebooks','mct_nb_choosenb',$key,'side','default');
+            }
+        }
+    }
 }
 
 function mct_nb_choosenb($post){
@@ -583,7 +597,7 @@ function mct_nb_choosenb($post){
 
 function mct_nb_savenb($post_id){
     //Save chosen notebook to meta data for a post
-    if (get_post_type($post_id) == 'post' && isset($_POST['mct-notebk'])){
+    if (isset($_POST['mct-notebk'])){
         if (intval($_POST['mct-notebk']) == 0) {
             delete_post_meta($post_id,'mct_nb_postnb');
             return;
@@ -629,7 +643,7 @@ function mct_ai_showpage($post){
         $topics = wp_get_object_terms($post->ID,'topic',array('fields' => 'slugs'));
         if (!empty($topics)) {
             $term = wp_get_object_terms($post->ID,'ai_class',array('fields' => 'names'));
-            if ($term[0] == 'multi') {
+            if (!empty($term) && $term[0] == 'multi') {
                 $args = array(
                     'post_type'       => 'target_ai',
                     'numberposts' => -1,
