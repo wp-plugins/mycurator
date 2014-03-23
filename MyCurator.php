@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 2.1.1
+ * Version: 2.1.2
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -41,7 +41,7 @@ define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
 define ('MCT_AI_LOG_REQUEST','REQUEST');
-define ('MCT_AI_VERSION', '2.1.1');
+define ('MCT_AI_VERSION', '2.1.2');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -152,11 +152,10 @@ function mct_ai_linkcolout($colname, $linkid){
     global $wp_object_cache;
     
     if ($colname == 'rss'){
-        $thecache = $wp_object_cache->cache;
-        $thismark = $thecache['bookmark'];
-        $thislink = $thismark[$linkid];
-        $short_url = url_shorten( $thislink->link_rss );
-        echo '<a href="'.$thislink->link_rss.'">'.$short_url.'</a>';
+        $thismark = get_bookmark($linkid);
+        $thislink = $thismark->link_rss;
+        $short_url = url_shorten( $thislink );
+        echo '<a href="'.$thislink.'">'.$short_url.'</a>';
     }
 }
 
@@ -286,7 +285,7 @@ function mct_ai_firstpage() {
             
             $trial = stripos($plan_display,'trial');
             if (stripos($plan_display,'ind') !== false) { ?>
-                <h3>Expand your curation with more Topics and use MyCurator on your other web sites or blogs!  Just
+                <h3>Expand your curation with more Topics, Sources and Notebooks as well as use MyCurator on your other web sites or blogs!  Just
                     <a href="http://www.target-info.com/myaccount/?token=<?php echo $token; ?>" >Upgrade to a Pro or Business Plan</a> for a low monthly fee and build your business and SEO.</h3>
             <?php }    //end Individual
             elseif ($trial) { ?>
@@ -763,7 +762,7 @@ function mct_ai_topicpage() {
          exit();
     }
 ?>
-       <p>Use spaces to separate keywords.  You can use phrases in Keywords by enclosing words in single or double quotes 
+       <p>Use spaces or commas to separate keywords.  You can use phrases in Keywords by enclosing words in single or double quotes 
            (start and end quotes must be the same).  Use the root of a keyword and it will match all endings, for example manage 
            will match manages, manager and management. See <a href="http://www.target-info.com/training-videos/#topics" >Topics</a> video and 
            <a href="http://www.target-info.com/documentation-2/documentation-topics/" >Topics Documentation</a> for more details</p>
@@ -1182,6 +1181,10 @@ function mct_ai_optionpage() {
                     <span>&nbsp;<em>Check this if you have Formatting Problems on Training Page or Admin Training Posts</em></span></td>    
                 </tr>
                 <tr>
+                    <th scope="row">Place attribution link above excerpt</th>
+                    <td><input name="ai_attr_top" type="checkbox" id="ai_attr_top" value="1" <?php checked('1', $cur_options['ai_attr_top']); ?>  /></td>    
+                </tr>
+                <tr>
                     <th scope="row">Make Post Date 'Immediately' when Made Live</th>
                     <td><input name="ai_now_date" type="checkbox" id="ai_now_date" value="1" <?php checked('1', $cur_options['ai_now_date']); ?>  /></td>    
                 </tr>
@@ -1401,7 +1404,7 @@ function mct_ai_setoptions($default) {
             'ai_on' => ($default) ? TRUE : ($_POST['ai_on'] == FALSE ? FALSE : TRUE),
             'ai_cloud_token' => ($default) ? '' : trim($_POST['ai_cloud_token']),
             'ai_train_days' => ($default) ? 7 : absint($_POST['ai_train_days']),
-            'ai_lookback_days' => ($default) ? 7 : absint($_POST['ai_lookback_days']),
+            'ai_lookback_days' => ($default) ? 30 : absint($_POST['ai_lookback_days']),
             'ai_short_linkpg' => ($default) ? 1 : absint((isset($_POST['ai_short_linkpg']) ? $_POST['ai_short_linkpg'] : 0)),
             'ai_save_thumb' => ($default) ? 1 : absint((isset($_POST['ai_save_thumb']) ? $_POST['ai_save_thumb'] : 0)),
             'ai_cron_period' => ($default) ? 6 : absint($_POST['ai_cron_period']),
@@ -1445,6 +1448,7 @@ function mct_ai_setoptions($default) {
             'ai_page_rqst' => ($default) ? 1 : absint((isset($_POST['ai_page_rqst']) ? $_POST['ai_page_rqst'] : 0)),
             'ai_image_bottom' => ($default) ? 0 : absint((isset($_POST['ai_image_bottom']) ? $_POST['ai_image_bottom'] : 0)),
             'ai_custom_types' => ($default) ? '' : '', //Not set by post, special processing
+            'ai_attr_top' => ($default) ? 0 : absint((isset($_POST['ai_attr_top']) ? $_POST['ai_attr_top'] : 0)),
             'MyC_version' => ($default) ? MCT_AI_VERSION : MCT_AI_VERSION
         );
         return $opt_update;
@@ -1790,7 +1794,7 @@ function mct_ai_logspage() {
     
     //Get all topics for dropdown
     $sql = "SELECT `topic_name`
-            FROM $ai_topic_tbl";
+            FROM $ai_topic_tbl ORDER BY topic_name";
     $topic_vals = $wpdb->get_results($sql, ARRAY_A);
     if ($blog_id == 1) $topic_vals[] = array('topic_name' => 'Blog');
     //Get restart transient for display
@@ -2110,18 +2114,20 @@ function mct_ai_showplan($display=true, $upgrade=true){
     if (!$display) {
         return ($cur_cnt >= $plan['max']) ? false : true;
     }
+    $source = $plan['maxsrc'];
+    if (empty($source)) $source = "Unlimited";
     //Get Token
     $token = $mct_ai_optarray['ai_cloud_token'];
     //Set up the display
     ob_start();
     ?>
-    <h4><?php echo $plan['name']; ?> with <?php echo $plan['max']; ?> Topics maximum and <?php echo $cur_cnt; ?> currently used</h4>
+    <h4><?php echo $plan['name']; ?> with <?php echo $plan['max']; ?> Topics maximum and <?php echo $cur_cnt; ?> currently used and <?php echo $source; ?> Sources</h4>
     <?php 
     if ($upgrade && current_user_can('manage_options')) { 
         if (stripos($plan['name'],'ind') !== false) {
-            echo '<p>If you would like to set up more topics than your current plan allows, or install MyCurator on more sites, <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Upgrade to a Pro or Business Plan</a></p>';
+            echo '<p>If you would like to set up more Topics or Sources than your current plan allows, or install MyCurator on more sites, <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Upgrade to a Pro or Business Plan</a></p>';
         } else { //must be pro, business already returned
-            echo '<p>If you would like to set up more topics than your current plan allows, or install MyCurator on more sites, <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Go to My Account</a> on our site</p>';
+            echo '<p>If you would like to set up more Topics or Sources than your current plan allows, or install MyCurator on more sites, <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Go to My Account</a> on our site</p>';
         }
     }
     return ob_get_clean();

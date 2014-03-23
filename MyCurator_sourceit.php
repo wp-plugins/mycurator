@@ -57,6 +57,9 @@ $cats = array (
     'taxonomy' => 'link_category'
 );
 if (isset($args['link_category'])) $cats['selected'] = $args['link_category'];
+//Check if sources over max
+mct_ai_getplan();
+$src = mct_ai_sourcemax();
 
 wp_enqueue_style( 'colors' );
 wp_enqueue_script( 'post' );
@@ -183,6 +186,10 @@ jQuery(document).ready(function($) {
                         <script type="text/javascript">setTimeout('self.close();',2000);</script>
 			</div>
 		<?php exit(); } ?>
+                <?php if ($src !== false && $src <= 0) {
+                    mct_ai_showsrc();
+                    exit;
+                } ?>
                 <div id="jquery-message" style="display:none; color: red; font-size: 18px;">
 			<p><strong><span id="feed-error"><?php _e('Error Finding Feed'); ?></span></strong>
 			<a href="#" onclick="window.close();"><?php _e('Close Window'); ?></a></p>

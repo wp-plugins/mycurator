@@ -443,7 +443,7 @@ function mct_nb_showlimits($display=true, $upgrade=true) {
     <?php 
     if ($upgrade && current_user_can('manage_options')) { 
         if (stripos($plan['name'],'ind') !== false) {
-            echo '<p>If you would like to create more Notebooks than your current plan allows <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Add Unlimited Notebooks or Upgrade to a Pro or Business Plan</a></p>';
+            echo '<p>If you would like to create more Notebooks than your current plan allows <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Upgrade to a Pro or Business Plan</a></p>';
         }
     }
     return ob_get_clean();

@@ -331,6 +331,71 @@ function mct_ai_getplan($force = false){
     
 }
 
+function mct_ai_sourcemax() {
+    //Check for number of sources greater than max
+    //Returns false if no max, otherwise # of sources left, could be negative
+    global $mct_ai_optarray, $ai_topic_tbl, $wpdb;
+    
+    $plan = unserialize($mct_ai_optarray['ai_plan']);
+    if (!empty($plan['maxsrc'])){
+        $src_count = 0;
+        //Loop on all train and active topics in this site
+        $sql = "SELECT *
+                FROM $ai_topic_tbl
+                WHERE topic_status != 'Inactive'";
+        $topics = $wpdb->get_results($sql, ARRAY_A);
+        if (empty($topics)){
+            //Count sources in links file but skip 'blogroll' category
+            $args = array(
+                'hide_invisible' => false
+            );
+            $feeds = get_bookmarks($args);
+            if (empty($feeds)){
+                return $plan['maxsrc'];
+            }
+            $src_count = count($feeds);
+            //now get those with blogroll
+            $args = array(
+                'category_name' => 'blogroll',
+                'hide_invisible' => false
+            );
+            $feeds = get_bookmarks($args);
+            if (!empty($feeds)){
+                $src_count -= count($feeds);
+            }
+            return $plan['maxsrc'] - $src_count;
+        }
+        foreach ($topics as $topic) {
+            //Check sources
+            if (empty($topic['topic_sources'])) continue;
+            $sources = array_map('trim',explode(',',$topic['topic_sources']));
+            foreach ($sources as $source){
+                //Count sources
+                $args = array(
+                    'category' => $source,
+                    'orderby' => 'link_id',
+                    'hide_invisible' => false
+                );
+                $feeds = get_bookmarks($args);
+                if (empty($feeds)){
+                    continue;
+                }
+                $src_count += count($feeds);
+            }
+        }
+        return $plan['maxsrc'] - $src_count;
+    }
+    return false;
+}
+
+function mct_ai_showsrc() {
+    //Show results of source check
+    global $mct_ai_optarray;
+    
+    $token = $mct_ai_optarray['ai_cloud_token'];
+    echo '<h3>The Maximum Sources for Your Plan has been reached - You Can Not Add Any More Sources</h3>';
+    echo '<p>If you would like to set up more Sources than your current plan allows, <a href="http://www.target-info.com/myaccount/?token='.$token.'" >Upgrade to a Pro or Business Plan</a></p>';
+}
 
 function mct_ai_train_ajax() {
     //Handle ajax requests from training pages/posts
