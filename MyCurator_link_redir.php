@@ -154,6 +154,9 @@ function mct_ai_getslarticle($page){
     $cnt = preg_match('{<span class="mct-ai-article-content">(.*)}si',$page,$matches);  //don't stop at end of line
     $article = $matches[1];
     $article = preg_replace('{</span></div></body></html>}','',$article);
+    //Get Author, Date
+    //$cnt = preg_match('{<div id="savelink-author">([^<]*)</div>}',$page,$matches);
+    //if ($cnt) $article = '<p>'.$matches[1].'</p>'.$article;
     return $article;
 }
 

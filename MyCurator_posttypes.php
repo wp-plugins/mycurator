@@ -148,7 +148,7 @@ function mct_ai_register(){
         //Need to keep these for those who skip updates until prior versions to "Added Ver" are not supported
         if (!isset($mct_ai_optarray['ai_no_procpg'])) $mct_ai_optarray['ai_no_procpg'] = 0;// Added 2.1
         if (!isset($mct_ai_optarray['ai_page_rqst'])) $mct_ai_optarray['ai_page_rqst'] = 0;// Added 2.1
-        if (!empty($mct_ai_optarray['ai_plan'])) {
+        if (!empty($mct_ai_optarray['ai_plan'])) { 
             $plan = unserialize($mct_ai_optarray['ai_plan']);
             if ($plan['max'] == 1){
                 //Upgrade single topic customers to full site and request processing
@@ -156,6 +156,7 @@ function mct_ai_register(){
                 $mct_ai_optarray['ai_page_rqst'] = 1;// Added 2.1.1
             }
         }
+        if (!isset($mct_ai_optarray['ai_attr_top'])) $mct_ai_optarray['ai_attr_top'] = 0; // Added 2.1.2
         if (!isset($mct_ai_optarray['ai_img_align'])) $mct_ai_optarray['ai_img_align'] = 'left'; // Added 2.1
         if (!isset($mct_ai_optarray['ai_img_size'])) $mct_ai_optarray['ai_img_size'] = 'thumbnail'; // Added 2.1
         if (!isset($mct_ai_optarray['ai_video_thumb'])) $mct_ai_optarray['ai_video_thumb'] = 0; // Added 2.1.1
@@ -1015,6 +1016,8 @@ function bwc_add_link_alerts(){
 function mct_ai_quick_source() {
     //Simple page to quickly add a new source
     //Handle POST
+    global $mct_ai_optarray;
+    
     $args = array(
         'feed_name' => "",
         'keywords' => "",
@@ -1055,6 +1058,9 @@ function mct_ai_quick_source() {
             $msgclass = 'updated';
         } else $cats['selected'] = $args['link_category']; //Save chosen cat on error
     }
+    //Check if sources over max
+    mct_ai_getplan();
+    $src = mct_ai_sourcemax();
     ?>
     <div class='wrap'>
     <?php screen_icon('link-manager'); ?>
@@ -1067,6 +1073,14 @@ function mct_ai_quick_source() {
         You can then use thisfeed in any of your MyCurator Topics by including the Link Category as a Source.
     See the <a href="http://www.target-info.com/documentation-2/documentation-sources/" />Documentation</a> for more information.</p>
     <p><strong>All fields are required except a New Link Category</strong></p>
+    <?php if ($src !== false && $src <= 0) {
+        mct_ai_showsrc();
+        exit;
+    } elseif ($src !== false) {
+        $plan = unserialize($mct_ai_optarray['ai_plan']);
+        echo '<p>Your Plan allows '.$plan['maxsrc'].' Sources and you have '.$src.' left to use';
+    }
+?>
     <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] ); ?>"> 
         <table class="form-table" >
             <tr>
@@ -1100,6 +1114,7 @@ function mct_ai_quick_source() {
 //Create News/Twitter Feed Screen
 function bwc_create_news(){
 
+    global $mct_ai_optarray;
     $msg = '';
     $follow = false;
     $feed_type = 'G';
@@ -1181,7 +1196,9 @@ function bwc_create_news(){
             ); //Don't let them recreate same one
         }
     }
-    
+    //Check if sources over max
+    mct_ai_getplan();
+    $src = mct_ai_sourcemax();
     //Start screen page
     ?>
     <div class='wrap'>
@@ -1197,6 +1214,13 @@ function bwc_create_news(){
     <p>YouTube searches are best used with a Video Type Topic where the video will be pasted into the post.</p>
     <p>To use Twitter Search or Follow a Twitter User you must set up a Twitter App in the Twitter Tab under Options</p>
     <p><strong>All fields are required except a New Link Category</strong></p>
+    <?php if ($src !== false && $src <= 0) {
+        mct_ai_showsrc();
+        exit;
+    }elseif ($src !== false) {
+        $plan = unserialize($mct_ai_optarray['ai_plan']);
+        echo '<p>Your Plan allows '.$plan['maxsrc'].' Sources and you have '.$src.' left to use';
+    } ?>
     <form method="post" action="<?php echo esc_url($_SERVER['REQUEST_URI'] ); ?>"> 
         <table class="form-table" >
             <tr>
@@ -1442,11 +1466,17 @@ if (!class_exists('mct_ai_Custom_Bulk_Action')) {
                         }
                         if ($pagenow == 'edit.php' && $post_type == 'target_ai') {
                             mct_nb_dialog();
+                            mct_ai_checkcron();
                             if (empty($mct_ai_optarray['ai_no_fmthelp'])){
                                $message = '<a class="thickbox" href="#TB_inline?&width=550&height=450&inlineId=ai-format-help" title="Training Posts Formatting">Click if you have Format Problems</a>';
                                $message = $message.mct_ai_inline_fmthelp();
                                echo "<div class=\"updated\">{$message}</div>";
                             } 
+                            //Max Sources Message
+                            if (mct_ai_sourcemax() < 0) {
+                                $message = "Too Many Sources - Some Feeds are being Skipped - Check the MyCurator Error Log";
+                                echo "<div class=\"error\">{$message}</div>";
+                            }
                         }
 		}
 		
@@ -1487,4 +1517,28 @@ function mct_ai_trainstyle(){
     wp_register_style('myctrain',$style,array(),'1.0.2');
     wp_enqueue_style('myctrain');
 }
+
+function mct_ai_checkcron(){
+    //Check if cron is set up, reset if not
+    global $mct_ai_optarray;
+    
+    if ($mct_ai_optarray['ai_on']){
+        if (!wp_next_scheduled('mct_ai_cron_process')){
+            $cronperiod = 'mct6hour';  //default if not set
+            if ($mct_ai_optarray['ai_cron_period'] == '3') $cronperiod = 'mct3hour';
+            if ($mct_ai_optarray['ai_cron_period'] == '12') $cronperiod = 'twicedaily';
+            if ($mct_ai_optarray['ai_cron_period'] == '24') $cronperiod = 'daily';
+            $hour = rand(4,8)-get_option('gmt_offset');
+            $strt = mktime($hour);  
+            wp_schedule_event($strt,$cronperiod,'mct_ai_cron_process');
+        }
+        if (!empty($mct_ai_optarray['ai_page_rqst'])){
+            if (!wp_next_scheduled('mct_ai_cron_rqstproc')){
+                $strt = time()+(60*30);  //30 minutes from now
+                wp_schedule_event($strt,'hourly','mct_ai_cron_rqstproc');
+            }
+        }
+    }
+}
+
 ?>

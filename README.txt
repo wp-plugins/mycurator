@@ -4,7 +4,7 @@ Donate link:
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
 Tested up to: 3.8
-Stable tag: 2.1.1
+Stable tag: 2.1.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -85,6 +85,12 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 2.1.2 =
+* Option to put link to original article above excerpt.
+* Fix to loss of training tags - automatically add topic taxonomy if missing
+* Fix to replace Cron jobs if they are somehow missing when in Training Posts page
+* Set default Look Back Days to 30
 
 = 2.1.1 =
 * Curate articles to custom post types

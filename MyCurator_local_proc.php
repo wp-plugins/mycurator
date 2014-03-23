@@ -65,10 +65,16 @@ function mct_ai_process_topic($topic){
     global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
     
     //For this topic, get the sources
+    if (empty($topic['topic_sources'])) return;
     $sources = array_map('trim',explode(',',$topic['topic_sources']));
-    if (empty($sources)){
-        return;  //Nothing to read
-    }
+    //set any max source
+    $maxsrc = 0;
+    $src_cnt = 0;
+    $plan = unserialize($mct_ai_optarray['ai_plan']);
+    if (!empty($plan['maxsrc'])) $maxsrc = $plan['maxsrc'];
+    //Check for topic taxonomy
+    $terms = get_term_by( 'name', $topic['topic_name'], 'topic');
+    if (empty($terms)) wp_insert_term($topic['topic_name'],'topic');
     //Get the restart transient which is set if last topic:source:feed didn't complete
     $restart = get_transient('mct_ai_last_feed');
     if ($restart) {
@@ -121,6 +127,7 @@ function mct_ai_process_topic($topic){
                 continue;  //no feed in link
             }
             //Set the restart transient for 36 hours as we process this feed
+            $src_cnt += 1;
             set_transient('mct_ai_last_feed',strval($topic['topic_id']).':'.strval($source).':'.strval($feed->link_id),60*60*36);
             //replace &amp; with & - from db sanitization
             $feed->link_rss = preg_replace('[&amp;]','&',$feed->link_rss);
@@ -181,10 +188,13 @@ function mct_ai_process_topic($topic){
             if (!$anynewposts && $onlyoldposts) {
                 mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'All posts older than 60 days',$feed->link_name);
             }
+            if ($maxsrc > 0 && $src_cnt >= $maxsrc) break;
         }  //end for each feed
         //Delete the restart transient
         delete_transient('mct_ai_last_feed');
+        if ($maxsrc > 0 && $src_cnt >= $maxsrc) break;
     } //end for each source
+    if ($maxsrc > 0 && $src_cnt >= $maxsrc) mct_ai_log($topic['topic_name'],MCT_AI_LOG_ERROR, 'Maximum of '.$maxsrc.' Sources Reached', $feed->link_rss, $feed->link_name);
 }  
         
 function mct_ai_process_request(){
@@ -222,6 +232,9 @@ function mct_ai_process_request(){
                 }
                 continue;
             }
+            //Check for topic taxonomy
+            $terms = get_term_by( 'name', $topic['topic_name'], 'topic');
+            if (empty($terms)) wp_insert_term($topic['topic_name'],'topic');
             unset($topic['topic_last_run']);  //Don't pass to cloud 
             //Set up the topic info for the cloud service
             if (!mct_ai_cloudtopic($topic)) {
@@ -634,7 +647,11 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     } else {
         if ($mct_ai_optarray['ai_show_orig']){
             $post_arr['orig_link'] = mct_ai_formatlink($post_arr);
-            $post_content = $post_arr['article'].'<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>';
+            if (empty($mct_ai_optarray['ai_attr_top'])) {
+                $post_content = $post_arr['article'].'<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>';
+            } else {
+                $post_content = '<p id="mct-ai-attriblink">'.$post_arr['orig_link'].'</p>'.$post_arr['article'];
+            }
             if (empty($mct_ai_optarray['ai_orig_text'])) {
                 $post_content = str_replace("Click here to view original web page at ",$mct_ai_optarray['ai_orig_text'],$post_content); //remove space too
             } else {
