@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 2.1.2
+ * Version: 2.1.3
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -41,7 +41,7 @@ define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
 define ('MCT_AI_LOG_REQUEST','REQUEST');
-define ('MCT_AI_VERSION', '2.1.2');
+define ('MCT_AI_VERSION', '2.1.3');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;

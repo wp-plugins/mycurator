@@ -622,6 +622,7 @@ function mct_ai_showpg_queue(){
     );
     wp_localize_script('mct_ai_showpg', 'mct_ai_showpg', $params);
     wp_enqueue_style('jquery-ui-dialog');
+    wp_enqueue_style('wp-jquery-ui-dialog');
 }
 
 function mct_ai_showpage($post){
