@@ -3,8 +3,8 @@ Contributors: mtilly
 Donate link: 
 Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
-Tested up to: 3.8
-Stable tag: 2.1.2
+Tested up to: 3.9
+Stable tag: 2.1.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -85,6 +85,9 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 2.1.3 =
+* Update to format Image Pop-up in Editor for WordPress 3.9
 
 = 2.1.2 =
 * Option to put link to original article above excerpt.
