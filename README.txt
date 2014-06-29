@@ -8,13 +8,13 @@ Stable tag: 2.1.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator Makes it Easier to Build Quality Content for Your Site, from Content Curation to Writing Original Articles.
+MyCurator Content Curation Software Makes it Easier to Build Quality Content for Your WordPress Site.
 
 == Description ==
 
 MyCurator works tirelessly in the background delivering a pipeline of interesting, usable content to you throughout the day.  
-Our Get It Bookmarklet lets you capture content as you browse the web.  Quickly curate this content onto your site with great curation tools.
-Use our Notebooks to save the best articles and posts you find for use in your original articles or building complex curated posts.
+Quickly curate this content onto your site with great curation tools.  Our Get It Bookmarklet lets you curate content as you browse the web.
+Use our Notebooks to save the best articles and posts you find for use in your original articles or building complex content curation posts.
 
 Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 
@@ -22,21 +22,21 @@ Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 * The full text, attribution link and all images for each article are available in the WordPress post editor, just click on a paragraph, list, table or image and its inserted into your blog article immediately.
 * Notebooks let you research ideas and save related articles, both from MyCurator's automated discovery and your web explorations.
 * Notebooks are like Evernote, only integrated into your WordPress Editor.
-* Curate articles to your custom post types
-* Customize article discovery to your specific niche by choosing what sources to read and what to look for in each article
-* For even more content accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
-* Get It Bookmarklet allows you to discover content while browsing and add it to your training page for future curation.
-* Special Video curation features to find and embed videos directly into curated posts.
-* Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk curation tools.
-* MyCurator finds articles in any language, and all posts are in the native language of your site.
+* Curate content to your custom post types
+* Customize content curation to your specific niche by choosing what sources to read and what to look for in each article
+* For even more content curation accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
+* Get It Bookmarklet allows you to discover and curate content while browsing and add it to your training page for future curation.
+* Special Video content curation features to find and embed videos directly into curated posts.
+* Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk content curation tools.
+* MyCurator curates content in any language, and all posts are in the native language of your site.
 * Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
 * Source It Bookmarklet to easily capture RSS feeds.
 * Selective Auto-Post capability uses AI process to deliver highly targeted, quality articles to your community.
 
-MyCurator is powerful corporate level software brought to you as a plugin.  It uses a cloud process to perform 
+MyCurator is powerful corporate level content curation software brought to you as a plugin.  It uses a cloud process to perform 
 intensive AI processing and article classification.  This allows MyCurator to maintain a low processing overhead on your site.
 
-MyCurator allows you to curate a Topic (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
+MyCurator allows you to curate content for a Topic (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
 cloud services.  For those who need to curate a lot of different topics or for multiple sites, low priced monthly plans are 
 available - always with a free 30 day trial.  Visit http://www.target-info.com/pricing/ for more information on how MyCurator can add 
 content curation to your content marketing capabilities.
