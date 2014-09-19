@@ -64,8 +64,46 @@ function mct_ai_process_topic($topic){
     //$topic is an array with each field from the topics file
     global $blog_id, $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl, $mct_ai_optarray;
     
+    $titles = array();  //Store titles to search for dups
+    $this_title = '';
+    //Get previous post titles for this topic if title dup checking set
+    if (!empty($mct_ai_optarray['ai_dup_title'])) {
+        $terms = get_term_by( 'name', $topic['topic_name'], 'topic');
+        $topic_slug = empty($terms->slug) ? "" : $terms->slug;
+        if (!empty($topic_slug)) {
+            $args = array('post_type' => 'target_ai', 
+                'posts_per_page' => -1, 
+                'post_status' => 'publish',
+                'topic' => $topic_slug);
+            $allposts = get_posts($args);
+            if (!empty($allposts)){
+                foreach ($allposts as $p) {
+                    $titles[] = trim($p->post_title);
+                }
+                unset($allposts);
+            }
+        }
+    }
+    
+    //Check for start/end date
+    $topic_opt = mct_ai_get_topic_options($topic);
+    if (!empty($topic_opt['opt_topic_start'])) {
+        if (time() < strtotime($topic_opt['opt_topic_start'])) {
+           mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Skipping Topic, Before Start Date ', $topic_opt['opt_topic_start']); 
+           return;
+        }
+    }
+    if (!empty($topic_opt['opt_topic_end'])) {
+        if (time() > strtotime($topic_opt['opt_topic_end'])) {
+           mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Skipping Topic, After End Date ', $topic_opt['opt_topic_end']); 
+           return;
+        }
+    }
     //For this topic, get the sources
-    if (empty($topic['topic_sources'])) return;
+    if (empty($topic['topic_sources'])) {
+        mct_ai_log($topic['topic_name'],MCT_AI_LOG_PROCESS, 'Skipping Topic, No Sources ', '');
+        return;
+    }
     $sources = array_map('trim',explode(',',$topic['topic_sources']));
     //set any max source
     $maxsrc = 0;
@@ -180,8 +218,18 @@ function mct_ai_process_topic($topic){
                     mct_ai_setPRpage($page, $topic, $post_arr);  //Need to update posts read if this is a new page
                 }
                 //Post the new entry if good response
-                if ($postit) mct_ai_post_entry($topic, $post_arr, $page);  //post entries
-
+                if ($postit) {
+                    //Check for dups if option set
+                    if (!empty($mct_ai_optarray['ai_dup_title'])) {
+                        $this_title = trim(mct_ai_get_title($page));
+                        if (!empty($this_title) && in_array($this_title,$titles) ) {
+                            mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'Duplicate Title Found ', $this_title, $post_arr['source']);
+                            continue;
+                        }
+                        if (!empty($this_title)) $titles[] = $this_title;
+                    }
+                    mct_ai_post_entry($topic, $post_arr, $page);  //post entries
+                }
             } //end for each item
             unset($nowdate);
             //Log if only old posts
@@ -217,6 +265,9 @@ function mct_ai_process_request(){
     foreach ($rqsts as $rqst){
         $post_arr = array(); 
         if($tname == '' || $tname != $rqst['logs_topic']) {
+            $titles = array();  //Store titles to search for dups
+            $this_title = '';
+            
             //Get new Topic record
             $sql = "SELECT *
             FROM $ai_topic_tbl
@@ -249,6 +300,24 @@ function mct_ai_process_request(){
             }
             $tname = $topic['topic_name'];
             mct_ai_log($tname,MCT_AI_LOG_PROCESS, 'Request Processing Topic ', '');
+            //Get previous post titles for this topic if title dup checking set
+            if (!empty($mct_ai_optarray['ai_dup_title'])) {
+                $terms = get_term_by( 'name', $topic['topic_name'], 'topic');
+                $topic_slug = empty($terms->slug) ? "" : $terms->slug;
+                if (!empty($topic_slug)) {
+                    $args = array('post_type' => 'target_ai', 
+                        'posts_per_page' => -1, 
+                        'post_status' => 'publish',
+                        'topic' => $topic_slug);
+                    $allposts = get_posts($args);
+                    if (!empty($allposts)){
+                        foreach ($allposts as $p) {
+                            $titles[] = trim($p->post_title);
+                        }
+                        unset($allposts);
+                    }
+                }
+            }
         }
         //Check locally for page
         $item_obj = new stdClass;
@@ -272,6 +341,15 @@ function mct_ai_process_request(){
         mct_ai_setPRpage($page, $topic, $post_arr);  //Need to update posts read if this is a new page
         //Post the new entry if good response
         if ($postit) {
+            //Check for dups if option set
+            if (!empty($mct_ai_optarray['ai_dup_title'])) {
+                $this_title = trim(mct_ai_get_title($page));
+                if (!empty($this_title) && in_array($this_title,$titles) ) {
+                    mct_ai_log($topic['topic_name'],MCT_AI_LOG_ACTIVITY, 'Duplicate Title Found ', $this_title, $post_arr['source']);
+                    continue;
+                }
+                if (!empty($this_title)) $titles[] = $this_title;
+            }
             mct_ai_post_entry($topic, $post_arr, $page);  //post entries
         } 
         //Get rid of log entry
@@ -711,7 +789,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
     }
     //Use topic & aiclass in all cases
     $terms = get_term_by( 'name', $topic['topic_name'], 'topic');
-    $topic_slug = $terms->slug;
+    $topic_slug = empty($terms->slug) ? "" : $terms->slug;
     if ($topic['topic_type'] != 'Relevance'){
         $details['tax_input'] = array (  //add topic name 
         'topic' => $topic_slug
@@ -722,6 +800,7 @@ function mct_ai_post_entry($topic, $post_arr, $page){
         'topic' => $topic_slug,
         'ai_class' => $terms->slug //add ai class
         );
+        $class_slug = $terms->slug;
     }
     //check if active using relevance engine, but post is bad or unknown
     $rel_not_good = false;  
@@ -819,16 +898,13 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
     //Grab the post content out of the rendered page
     global $mct_ai_optarray;
     $excerpt_length = $mct_ai_optarray['ai_excerpt'];
-    $title = '';
     $article = '';
     //$page has the content, with html, using the format of rendered page, separate sections
-    $cnt = preg_match('{<title>([^<]*)</title>}i',$page,$matches);
-    if ($cnt) $title = $matches[1];
+    
     $cnt = preg_match('{<span class="mct-ai-article-content">(.*)}si',$page,$matches);  //don't stop at end of line
     if ($cnt) $article = $matches[1];
-    //Get rid of tags in title
-    $title = preg_replace('{<([^>]*)>}',' ',$title);  //remove tags but leave spaces
-    $post_arr['title'] = $title;  //save title 
+    //Get title
+    $post_arr['title'] = mct_ai_get_title($page);  //save title 
     // Get original URL
     $pos = preg_match('{<div id="source-url">([^>]*)>([^<]*)<}',$page,$matches);
     if (isset($mct_ai_optarray['ai_new_tab']) && $mct_ai_optarray['ai_new_tab'] ) {

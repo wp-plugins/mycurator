@@ -59,6 +59,32 @@ function mct_ai_postlink($args){
     return '';
 }
 
+function mct_ai_get_title($page) {
+    //Get the title from the diffbot formatted page
+    $title = '';
+    
+    if (empty($page)) return;
+    
+    $cnt = preg_match('{<title>([^<]*)</title>}i',$page,$matches);
+    if ($cnt) {
+        $title = $matches[1];
+        //Get rid of tags in title
+        $title = preg_replace('{<([^>]*)>}',' ',$title);  //remove tags but leave spaces
+    }
+    return $title;
+}
+
+function checkmydate($mydate) { 
+    
+    if (strpos($mydate,'/') === false) return false;
+    list($mm,$dd,$yy)=explode("/",$mydate); 
+    if (is_numeric($yy) && is_numeric($mm) && is_numeric($dd)) 
+    { 
+        return checkdate($mm,$dd,$yy); 
+    } 
+    return false;            
+} 
+
 function mct_ai_getexcerpt($content){
     //Retrieves the excerpt from the content, typically post content
     //uses strpos so that the excerpt can contain html
@@ -175,7 +201,7 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
     if (!empty($validate['mime'])) { 
         $type = $validate['mime'];
     } else {
-        //error_log('Invalid File Type '.$filename);
+        mct_ai_log("Image Upload Error",MCT_AI_LOG_ERROR, 'Invalid File Type '.$imgurl,ini_get('allow_url_fopen'));//error_log('Invalid File Type '.$filename);
         return null;
     }
     $imgpath = parse_url($imgurl,PHP_URL_PATH); //ignore domain and query
@@ -187,7 +213,7 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
         if ($pos) $filename .= '.'.substr($type,$pos+1); //add extension
     }
     if (!(($uploads = wp_upload_dir(current_time('mysql')) ) && false === $uploads['error'])) {
-        //error_log('Failed to get upload dir '.$uploads['error']);
+        mct_ai_log("Image Upload Error",MCT_AI_LOG_ERROR, 'Failed to get upload dir '.$uploads['error'],$imgurl);//error_log('Failed to get upload dir '.$uploads['error']);
         return null;
     }
 
@@ -204,7 +230,7 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
     }
     
     if (!$file_data) {
-        //error_log('Failed to get file contents '.$imgurl);
+        mct_ai_log("Image Upload Error",MCT_AI_LOG_ERROR, 'Failed to get file contents '.$imgurl,ini_get('allow_url_fopen'));//error_log('Failed to get file contents '.$imgurl);
         return null;
     }
     
@@ -235,7 +261,7 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
         update_attached_file( $thumb_id, $new_file );
         return $thumb_id;
     }
-    //error_log('Failed to insert attachment '.$thumb_id->get_error_message());
+    mct_ai_log("Image Upload Error",MCT_AI_LOG_ERROR, 'Failed to insert attachment '.$thumb_id->get_error_message(),$imgurl);//error_log('Failed to insert attachment '.$thumb_id->get_error_message());
     return null;
 }
 
@@ -742,6 +768,7 @@ function mct_ai_traintoblog($thepost, $status){
                     $details['post_date_gmt'] = '';
                 }
             }
+            $details = apply_filters('mct_traintoblog_details', $details);
             wp_update_post($details);
         }
     }
@@ -799,6 +826,10 @@ function mct_ai_showpg_ajax() {
     }
     //handle featured image
     if ($type == 'feature'){
+        //Check for and delete current featured image
+        $old_thumb = get_post_meta($pid, '_thumbnail_id',true);  //Post Thumbnail
+        if ($old_thumb) wp_delete_attachment($old_thumb,true);
+        //Now update
         $ret = update_post_meta( $pid, '_thumbnail_id', $thumb_id );
         $html = _wp_post_thumbnail_html( $thumb_id, $pid );
         $response->add(array(

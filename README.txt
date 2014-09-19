@@ -1,20 +1,24 @@
 === MyCurator ===
 Contributors: mtilly
 Donate link: 
-Tags: content curation, curation tools, curation software, curation plugin, content marketing, article writing, content writing, blog article
+Tags: content curation, content curation tools, content curation software, content curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
-Tested up to: 3.9
-Stable tag: 2.1.3
+Tested up to: 4.0
+Stable tag: 2.1.4
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator Content Curation Software Makes it Easier to Build Quality Content for Your WordPress Site.
+MyCurator Content Curation Software Makes it Easy to Build Quality Content for Your WordPress Site.
 
 == Description ==
 
 MyCurator works tirelessly in the background delivering a pipeline of interesting, usable content to you throughout the day.  
 Quickly curate this content onto your site with great curation tools.  Our Get It Bookmarklet lets you curate content as you browse the web.
 Use our Notebooks to save the best articles and posts you find for use in your original articles or building complex content curation posts.
+
+MyCurator is powerful corporate level content curation software brought to you as a plugin.  It uses a cloud process to perform 
+intensive AI processing and article classification.  This allows you to train MyCurator to find only the best, most relevant articles 
+for your site, weeding out the bulk of off-topic, spammy, content on the web. 
 
 Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 
@@ -32,9 +36,6 @@ Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
 * Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
 * Source It Bookmarklet to easily capture RSS feeds.
 * Selective Auto-Post capability uses AI process to deliver highly targeted, quality articles to your community.
-
-MyCurator is powerful corporate level content curation software brought to you as a plugin.  It uses a cloud process to perform 
-intensive AI processing and article classification.  This allows MyCurator to maintain a low processing overhead on your site.
 
 MyCurator allows you to curate content for a Topic (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
 cloud services.  For those who need to curate a lot of different topics or for multiple sites, low priced monthly plans are 
@@ -85,6 +86,13 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 2.1.4 =
+* Option added to remove duplicate articles within a Topic using their title 
+* Ability to add a start and end date to a Topic for selective background processing
+* Streamlined startup of Get It and Source It to use wp_load
+* Remove old featured image when adding a new featured image using the click-copy feature
+* Check for no Topics on Get It to remove php warning
 
 = 2.1.3 =
 * Update to format Image Pop-up in Editor for WordPress 3.9

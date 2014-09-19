@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 2.1.3
+ * Version: 2.1.4
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -33,6 +33,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *   This action lets you perform additional actions after the new article post is created
  *   $post_id is the newly created post
  *   you have access to a range of items in the $post_arr array
+ * $details = apply_filters('mct_traintoblog_details', $details);
+ *   This filter lets you alter the details of a post before it is made a draft or
+ *   published from a training post.
  */
 
 //Define some constants
@@ -41,7 +44,7 @@ define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
 define ('MCT_AI_LOG_REQUEST','REQUEST');
-define ('MCT_AI_VERSION', '2.1.3');
+define ('MCT_AI_VERSION', '2.1.4');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -403,6 +406,10 @@ function mct_ai_vercheck() {
     } else {
         echo "<li><img src='$imgbad' ></img> - Wordpress Version ".strval($version)." NOT 3.2 or Greater - MyCurator not tested with this version";        
     }
+    $furl = ini_get('allow_url_fopen');
+    if (empty($furl)) {
+        echo "<li><img src='$imgbad' ></img> - PHP Needs allow_url_fopen On in PHP.ini  - MyCurator Images will not work without it, contact your host provider!";
+    }
     echo "</ul>";
 }
 function mct_ai_mainpage() {
@@ -459,6 +466,8 @@ function mct_ai_mainpage() {
                 <th>Status</th>
                 <th>Category or Post Type</th>
                 <th>Assigned Author</th>
+                <th>Start Date</th>
+                <th>End Date</th>
                 <th>Sources</th>
                 <th class="column-cb check-column">Process
                     <input id="cb-select-all" type="checkbox" checked="checked">
@@ -481,6 +490,8 @@ function mct_ai_mainpage() {
                 echo('<td>'.mct_ai_status_display($row['topic_status'],'display').'</td>');
                 echo('<td>'.$catstr.'</td>');
                 echo('<td>'.$row['opt_post_user'].'</td>');
+                echo('<td>'.$row['opt_topic_start'].'</td>');
+                echo('<td>'.$row['opt_topic_end'].'</td>');
                 if (empty($row['topic_sources'])){
                     $source_fld = "Add Sources";
                 } else {
@@ -584,6 +595,8 @@ function mct_ai_topicpage() {
             'opt_post_user' => $_POST['opt_post_user'],
             'opt_image_filter' => strval(absint((isset($_POST['opt_image_filter']) ? $_POST['opt_image_filter'] : 0) )),
             'opt_post_ctype' => (!empty($_POST['opt_post_ctype']) ? $_POST['opt_post_ctype'] : 'not-selected') ,
+            'opt_topic_start'  => trim(sanitize_text_field($_POST['opt_topic_start'])),
+            'opt_topic_end'  => trim(sanitize_text_field($_POST['opt_topic_end'])),
             'topic_min_length' => strval(absint($_POST['topic_min_length']))
         );        
         //Set the taxonomy based on the custom type chosen
@@ -614,6 +627,25 @@ function mct_ai_topicpage() {
             }
             if ($error_flag) $msg = "Topic Name may not contain special characters, just letters, - and numbers. ";
         }
+        //Validate topic start/end dates
+        $strt_val = $edit_vals['opt_topic_start'];
+        if (!empty($strt_val) && !checkmydate($strt_val)) {
+            $error_flag = true;
+            $msg .= " Invalid Topic Start Date: ".$edit_vals['opt_topic_start']." (Make sure in mm/dd/yy format)";
+        } elseif (!empty($strt_val)) {
+                $strt = strtotime($strt_val);
+        }
+        $end_val = $edit_vals['opt_topic_end'];
+        if (!empty($end_val) && !checkmydate($end_val)) {
+            $error_flag = true;
+            $msg .= " Invalid Topic End Date: ".$edit_vals['opt_topic_end']." (Make sure in mm/dd/yy format)";
+        } elseif (!empty($end_val) && !empty($strt)){
+            if (strtotime($end_val) < $strt) {
+                $error_flag = true;
+                $msg .= " Topic End Date Before Start Date ";
+            }
+        }  
+        
         if (!$error_flag) {
             //Create Slug if needed
             if (empty($_POST['topic_slug'])){
@@ -628,7 +660,9 @@ function mct_ai_topicpage() {
                 'opt_image_filter' => $edit_vals['opt_image_filter'],
                 'opt_post_ctype' => $edit_vals['opt_post_ctype'],
                 'opt_post_ctax' => $edit_vals['opt_post_ctax'],
-                'opt_post_ctaxval' => $edit_vals['opt_post_ctaxval']
+                'opt_post_ctaxval' => $edit_vals['opt_post_ctaxval'],
+                'opt_topic_start'  => $edit_vals['opt_topic_start'],
+                'opt_topic_end'  => $edit_vals['opt_topic_end']
                 ));
             //unset opt fields not in db
             unset($edit_vals['opt_post_user']);
@@ -636,6 +670,8 @@ function mct_ai_topicpage() {
             unset($edit_vals['opt_post_ctype']);
             unset($edit_vals['opt_post_ctax']);
             unset($edit_vals['opt_post_ctaxval']);
+            unset($edit_vals['opt_topic_start']);
+            unset($edit_vals['opt_topic_end']);
             if ($_GET['updated'] == 'true'){
                 //Do an update
                 $where = array('topic_name' => $topic_name);
@@ -719,6 +755,8 @@ function mct_ai_topicpage() {
             $edit_vals['opt_post_ctax'] = '';
             $edit_vals['opt_post_ctaxval'] = '';
             $edit_vals['opt_image_filter'] = '';
+            $edit_vals['opt_topic_start'] = '';
+            $edit_vals['opt_topic_end'] = '';
         } else {
             //error, so reset selected cat, tag, sources
             $cats['selected'] = $edit_vals['topic_cat'];
@@ -850,6 +888,14 @@ function mct_ai_topicpage() {
                 <th scope="row">OR Assign to a Single Tag</th>
                 <td><?php wp_dropdown_categories($tags); ?><td>    
             </tr> 
+            <tr>
+                <th scope="row">Topic Start Date (mm/dd/yy)</th>
+                <td><input name="opt_topic_start" type="input" id="opt_topic_start" size="12" maxlength="12" value="<?php echo $edit_vals['opt_topic_start']; ?>"  /></td>    
+            </tr>
+            <tr>
+                <th scope="row">Topic End Date (mm/dd/yy)</th>
+                <td><input name="opt_topic_end" type="input" id="opt_topic_end" size="12" maxlength="12" value="<?php echo $edit_vals['opt_topic_end']; ?>"  /></td>    
+            </tr>
             <!-- Custom Post Type Selection -->
             <?php if (!empty($custom_types)) { ?>
                 <tr><td><h3>Custom Post Type Option</h3></td>
@@ -1187,6 +1233,9 @@ function mct_ai_optionpage() {
                 <tr>
                     <th scope="row">Make Post Date 'Immediately' when Made Live</th>
                     <td><input name="ai_now_date" type="checkbox" id="ai_now_date" value="1" <?php checked('1', $cur_options['ai_now_date']); ?>  /></td>    
+                </tr><tr>
+                    <th scope="row">Remove Duplicate Titles Within Same Topic</th>
+                    <td><input name="ai_dup_title" type="checkbox" id="ai_dup_title" value="1" <?php checked('1', $cur_options['ai_dup_title']); ?>  /></td>    
                 </tr>
                 <tr><th><strong>Video -----------------</strong></th><td><strong>The following options Only apply to Topics with a type of Video.</strong></td></tr>
                 <tr>
@@ -1449,6 +1498,7 @@ function mct_ai_setoptions($default) {
             'ai_image_bottom' => ($default) ? 0 : absint((isset($_POST['ai_image_bottom']) ? $_POST['ai_image_bottom'] : 0)),
             'ai_custom_types' => ($default) ? '' : '', //Not set by post, special processing
             'ai_attr_top' => ($default) ? 0 : absint((isset($_POST['ai_attr_top']) ? $_POST['ai_attr_top'] : 0)),
+            'ai_dup_title' => ($default) ? 1 : absint((isset($_POST['ai_dup_title']) ? $_POST['ai_dup_title'] : 0)),
             'MyC_version' => ($default) ? MCT_AI_VERSION : MCT_AI_VERSION
         );
         return $opt_update;
@@ -2114,8 +2164,11 @@ function mct_ai_showplan($display=true, $upgrade=true){
     if (!$display) {
         return ($cur_cnt >= $plan['max']) ? false : true;
     }
-    $source = $plan['maxsrc'];
-    if (empty($source)) $source = "Unlimited";
+    if (empty($plan['maxsrc'])) {
+        $source = "Unlimited";
+    } else {
+        $source = $plan['maxsrc'];
+    }
     //Get Token
     $token = $mct_ai_optarray['ai_cloud_token'];
     //Set up the display
@@ -2161,11 +2214,13 @@ function mct_ai_clearlogs(){
 function mct_ai_get_topic_options($edit_vals){
     //Break out options from a topic option field
     $allopts = maybe_unserialize($edit_vals['topic_options']);
-    $edit_vals['opt_post_user'] = $allopts['opt_post_user'];
-    $edit_vals['opt_image_filter'] = $allopts['opt_image_filter'];
+    $edit_vals['opt_post_user'] = empty($allopts['opt_post_user']) ? "" : $allopts['opt_post_user'] ;
+    $edit_vals['opt_image_filter'] = empty($allopts['opt_image_filter']) ? "" : $allopts['opt_image_filter'];
     $edit_vals['opt_post_ctype'] = (empty($allopts['opt_post_ctype'])) ? "not-selected" : $allopts['opt_post_ctype'];
     $edit_vals['opt_post_ctax'] = (empty($allopts['opt_post_ctax'])) ? "" : $allopts['opt_post_ctax'];
     $edit_vals['opt_post_ctaxval'] = (empty($allopts['opt_post_ctaxval'])) ? "" : $allopts['opt_post_ctaxval'];
+    $edit_vals['opt_topic_start'] = empty($allopts['opt_topic_start']) ? "" : $allopts['opt_topic_start'];
+    $edit_vals['opt_topic_end'] = empty($allopts['opt_topic_end']) ? "" : $allopts['opt_topic_end'];
     return $edit_vals;
 }
 
