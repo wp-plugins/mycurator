@@ -13,7 +13,8 @@
 define('IFRAME_REQUEST' , true);
 
 /** WordPress Administration Bootstrap */
-require_once('../../../wp-admin/admin.php');
+require_once('../../../wp-load.php');
+require_once(ABSPATH . 'wp-admin/admin.php');
 
 header('Content-Type: ' . get_option('html_type') . '; charset=' . get_option('blog_charset'));
 
@@ -285,7 +286,7 @@ jQuery(document).ready(function($) {
         if (!empty($mct_ai_optarray['MyC_version'])){
             $sql = "SELECT `topic_name`, `topic_options` FROM $ai_topic_tbl WHERE topic_status != 'Inactive' ORDER BY topic_name";
             $topics = $wpdb->get_results($sql, ARRAY_A); 
-            if (! current_user_can('edit_others_posts')) {
+            if (!empty($topics) && !current_user_can('edit_others_posts')) {
                 //Reduce topics to what this author can see
                 $goodtopics= array();
                 foreach ($topics as $key => $topic) { 
