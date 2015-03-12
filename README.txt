@@ -3,8 +3,8 @@ Contributors: mtilly
 Donate link: 
 Tags: content curation, content curation tools, content curation software, content curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
-Tested up to: 4.0
-Stable tag: 2.1.4
+Tested up to: 4.1
+Stable tag: 2.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -86,6 +86,11 @@ cloud services.
 3. Saved page meta box with images in WordPress post editor.
 
 == Changelog ==
+
+= 2.2.0 =
+* Fixed problem where some YouTube videos were not embedding correctly for Topic of Type Video
+* More fixes to image capture to make it more reliable
+* For paid plans, a new Get It tab to Publish directly while specifying Categories, bypassing Topics
 
 = 2.1.4 =
 * Option added to remove duplicate articles within a Topic using their title 

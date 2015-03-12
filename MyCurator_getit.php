@@ -14,7 +14,11 @@ define('IFRAME_REQUEST' , true);
 
 /** WordPress Administration Bootstrap */
 require_once('../../../wp-load.php');
-require_once(ABSPATH . 'wp-admin/admin.php');
+if (defined('ABSPATH')) {
+    require_once(ABSPATH . 'wp-admin/admin.php');
+} else {
+    require_once('../../../wp-admin/admin.php');
+}
 
 header('Content-Type: ' . get_option('html_type') . '; charset=' . get_option('blog_charset'));
 
@@ -83,7 +87,12 @@ function press_it() {
                     mct_ai_traintoblog($newpost,'draft');
                 }
                 if ((!empty($_REQUEST['draft-cat']) || !empty($_REQUEST['draftedit-cat'])) && $newpost) {
-                    mct_nb_traintodraft($newpost,absint($_POST['post_category']));
+                    mct_nb_traintodraft($newpost,array(absint($_POST['post_category'])));
+                }
+                if (!empty($_REQUEST['publish']) || !empty($_REQUEST['publish-draft'])) {
+                    $poststat = empty($_REQUEST['publish']) ? 'draft' : 'publish' ;
+                    $postcat = empty($_POST['post_category']) ? array() : $_POST['post_category'];
+                    mct_nb_traintodraft($newpost,$postcat,$poststat);
                 }
                 return $newpost;
             }
@@ -142,7 +151,12 @@ function press_it() {
         mct_ai_traintoblog($newpost, 'draft');
     }
     if ((!empty($_REQUEST['draft-cat']) || !empty($_REQUEST['draftedit-cat'])) && $newpost) {
-                mct_nb_traintodraft($newpost,absint($_POST['post_category']));
+                mct_nb_traintodraft($newpost,array(absint($_POST['post_category'])));
+    }
+    if (!empty($_REQUEST['publish']) || !empty($_REQUEST['publish-draft'])) {
+            $poststat = empty($_REQUEST['publish']) ? 'draft' : 'publish' ;
+            $postcat = empty($_POST['post_category']) ? array() : $_POST['post_category'];
+            mct_nb_traintodraft($newpost,$postcat,$poststat);
     }
     //Post Meta
     update_post_meta($newpost,'mct_sl_origurl',array($url));
@@ -226,7 +240,8 @@ var photostorage = false;
             font-size: 1.3em;
         }
 </style>
-<?php $default = empty($mct_ai_optarray['ai_getit_tab']) ? 0 : 1; ?>
+<?php $default = empty($mct_ai_optarray['ai_getit_tab']) ? 0 : 1; 
+      $default = !empty($mct_ai_optarray['ai_getit_pub']) ? 2 : $default; ?>
 <script type="text/javascript">
 jQuery(document).ready(function($) {
     var deftab = <?php echo $default; ?>;
@@ -325,6 +340,7 @@ jQuery(document).ready(function($) {
             <?php if (!empty($topics)) echo '<li><a href="#tabs-1">Training</a></li>'; ?>
             <?php if (empty($topics)) echo '<li><a href="#tabs-2">Post</a></li>'; ?>
             <li><a href="#tabs-3">Notebooks</a></li>
+            <?php if (!empty($mct_ai_optarray['ai_getit_pub'])) echo '<li><a href="#tabs-4">Publish</a></li>'; ?>
             </ul>
             <?php if (!empty($topics)) { ?>
             <div id="tabs-1">     
@@ -407,7 +423,21 @@ jQuery(document).ready(function($) {
                 <input name="notebook" id="notebook" value="Save to Notebook" type="submit" class="button-primary" >
                 <img src="<?php echo esc_url( admin_url( 'images/wpspin_light.gif' ) ); ?>" alt="" id="saving" style="display:none;" />
             </div>
-            
+            <?php if (!empty($mct_ai_optarray['ai_getit_pub'])) { ?>
+            <div id="tabs-4">
+                <div id="categorydiv" class="postbox">
+                    <h3 class="hndle"><?php _e('Category') ?></h3>
+                    <div class="inside">
+                    <div id="taxonomy-category" class="categorydiv">
+                        <?php wp_category_checklist(); ?>   
+                    </div>
+                    </div>
+                </div>
+                <input name="publish" id="publish-cat" value="Publish Post" type="submit" class="button-primary" >
+                <input name="publish-draft" id="publish-draft-cat" value="Draft Post" type="submit" class="button-primary" >
+                <img src="<?php echo esc_url( admin_url( 'images/wpspin_light.gif' ) ); ?>" alt="" id="saving" style="display:none;" />
+             </div>
+             <?php } //empty Get It Publish ?>
          </div>
         </div>
     </div>

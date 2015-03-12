@@ -4,7 +4,7 @@
  * Plugin Name: MyCurator
  * Plugin URI: http://www.target-info.com
  * Description: Automatically curates articles from your feeds and alerts, using the Relevance engine to find only the articles you like
- * Version: 2.1.4
+ * Version: 2.2
  * Author: Mark Tilly
  * Author URL: http://www.target-info.com
  * License: GPLv2 or later
@@ -44,7 +44,7 @@ define ('MCT_AI_LOG_ERROR','ERROR');
 define ('MCT_AI_LOG_ACTIVITY','ACTIVITY');
 define ('MCT_AI_LOG_PROCESS','PROCESS');
 define ('MCT_AI_LOG_REQUEST','REQUEST');
-define ('MCT_AI_VERSION', '2.1.4');
+define ('MCT_AI_VERSION', '2.2');
 
 //Globals for DB
 global $wpdb, $ai_topic_tbl, $ai_postsread_tbl, $ai_sl_pages_tbl, $ai_logs_tbl;
@@ -1420,12 +1420,19 @@ function mct_ai_optionpage() {
                     <th scope="row">Use Inline Site Processing</th>
                     <td><input name="ai_no_procpg" type="checkbox" id="ai_no_procpg" value="1" <?php checked('1', $cur_options['ai_no_procpg']); ?>  />
                     </td>    
-                </tr>   
+                </tr>  
+                <?php if (mct_ai_ispaid()) { ?>
                 <tr>
                     <th scope="row">Hide MyCurator menu for non-Admins?</th>
                     <td><input name="ai_hide_menu" type="checkbox" id="ai_hide_menu" value="1" <?php checked('1', $cur_options['ai_hide_menu']); ?>  />
                     <em>Only for Paid Plans</em></td>    
                 </tr>   
+                <tr>
+                    <th scope="row">Add Publish Tab to Get It</th>
+                    <td><input name="ai_getit_pub" type="checkbox" id="ai_getit_pub" value="1" <?php checked('1', $cur_options['ai_getit_pub']); ?>  />
+                    <em>Only for Paid Plans</em></td>    
+                </tr> 
+                <?php } ?>
                 </table>
             </div>
          </div>
@@ -1498,6 +1505,7 @@ function mct_ai_setoptions($default) {
             'ai_image_bottom' => ($default) ? 0 : absint((isset($_POST['ai_image_bottom']) ? $_POST['ai_image_bottom'] : 0)),
             'ai_custom_types' => ($default) ? '' : '', //Not set by post, special processing
             'ai_attr_top' => ($default) ? 0 : absint((isset($_POST['ai_attr_top']) ? $_POST['ai_attr_top'] : 0)),
+            'ai_getit_pub' => ($default) ? 0 : absint((isset($_POST['ai_getit_pub']) ? $_POST['ai_getit_pub'] : 0)),
             'ai_dup_title' => ($default) ? 1 : absint((isset($_POST['ai_dup_title']) ? $_POST['ai_dup_title'] : 0)),
             'MyC_version' => ($default) ? MCT_AI_VERSION : MCT_AI_VERSION
         );
@@ -2194,6 +2202,15 @@ function mct_ai_menudisp(){
     if (stripos($name,'individual plan') !== false) return true;
     
     if (!empty($mct_ai_optarray['ai_hide_menu']) && !current_user_can('manage_options')) return false;
+    return true;
+}
+
+function mct_ai_ispaid(){
+    global $mct_ai_optarray;
+    
+    $name = mct_ai_showplan(true, false);
+    if (stripos($name,'error') !== false) return false;
+    if (stripos($name,'individual plan') !== false) return false;
     return true;
 }
 
