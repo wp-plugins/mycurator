@@ -7,7 +7,11 @@ define('IFRAME_REQUEST' , true);
 
 /** WordPress Administration Bootstrap */
 require_once('../../../wp-load.php');
-require_once(ABSPATH . 'wp-admin/admin.php');
+if (defined('ABSPATH')) {
+    require_once(ABSPATH . 'wp-admin/admin.php');
+} else {
+    require_once('../../../wp-admin/admin.php');
+}
 
 header('Content-Type: ' . get_option('html_type') . '; charset=' . get_option('blog_charset'));
 

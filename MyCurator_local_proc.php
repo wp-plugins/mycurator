@@ -916,6 +916,21 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
     if ($type == 'Video' && !empty($mct_ai_optarray['ai_embed_video'])) {
         //Embed the iframe into article
         $pos = preg_match('{<iframe title="Video Player"[^>]*>}',$page,$matches);
+        if (!$pos) {
+            //check for youtube source and build iframe in the page
+            if (stripos($post_arr['current_link'],'www.youtube.com/watch')!== false){
+                $vidid = getYouTubeVideoId($post_arr['current_link']);
+                $vidlink = 'http://www.youtube.com/embed/'.$vidid;
+                $vid = '<iframe title="Video Player" class="youtube-player" type="text/html" ';
+                $vid .= 'width="250" height="250" src="'.$vidlink.'"';
+                $vid .= 'frameborder="0" allowFullScreen></iframe>';
+                $pos = stripos($page,'Click here to view original web page');
+                $newpage = substr($page,0,$pos-1);
+                $endpage = substr($page,$pos);
+                $page = $newpage.$vid.$endpage;
+                $pos = preg_match('{<iframe title="Video Player"[^>]*>}',$page,$matches);
+            }
+        } 
         if ($pos) {
             $post_arr['article'] = $matches[0]."</iframe><br />"; //embed the iframe
             //set height/width
@@ -968,6 +983,9 @@ function mct_ai_getpostcontent($page, &$post_arr, $type){
                 } 
             }
             return;
+        } else {
+            //update_option('video_page',$page);
+            //update_option('video_link',$post_arr['current_link']);
         }
     }
     //Check for line breaks if option set
@@ -1052,4 +1070,36 @@ function mct_ai_set_simplepie($args){
     $feed->set_cache_duration(MCT_AI_PIE_CACHE);
 }
 
+function getYouTubeVideoId($url)
+{
+    $video_id = false;
+    $url = parse_url($url);
+    if (strcasecmp($url['host'], 'youtu.be') === 0)
+    {
+        #### (dontcare)://youtu.be/<video id>
+        $video_id = substr($url['path'], 1);
+    }
+    elseif (strcasecmp($url['host'], 'www.youtube.com') === 0)
+    {
+        if (isset($url['query']))
+        {
+            parse_str($url['query'], $url['query']);
+            if (isset($url['query']['v']))
+            {
+                #### (dontcare)://www.youtube.com/(dontcare)?v=<video id>
+                $video_id = $url['query']['v'];
+            }
+        }
+        if ($video_id == false)
+        {
+            $url['path'] = explode('/', substr($url['path'], 1));
+            if (in_array($url['path'][0], array('e', 'embed', 'v')))
+            {
+                #### (dontcare)://www.youtube.com/(whitelist)/<video id>
+                $video_id = $url['path'][1];
+            }
+        }
+    }
+    return $video_id;
+}
 ?>

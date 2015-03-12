@@ -156,6 +156,7 @@ function mct_ai_register(){
                 $mct_ai_optarray['ai_page_rqst'] = 1;// Added 2.1.1
             }
         }
+        if (!isset($mct_ai_optarray['ai_getit_pub'])) $mct_ai_optarray['ai_getit_pub'] = 0; // Added 2.2
         if (!isset($mct_ai_optarray['ai_dup_title'])) $mct_ai_optarray['ai_dup_title'] = 1; // Added 2.1.4
         if (!isset($mct_ai_optarray['ai_attr_top'])) $mct_ai_optarray['ai_attr_top'] = 0; // Added 2.1.2
         if (!isset($mct_ai_optarray['ai_img_align'])) $mct_ai_optarray['ai_img_align'] = 'left'; // Added 2.1

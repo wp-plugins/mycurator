@@ -206,9 +206,9 @@ function mct_ai_postthumb($imgurl, $post_id, $title) {
     }
     $imgpath = parse_url($imgurl,PHP_URL_PATH); //ignore domain and query
     $filename = substr($imgpath, (strrpos($imgpath, '/'))+1);
-    $filename = preg_replace('{%\d\d}','-',$filename);  //remove any url encoding for spaces etc.
-    $ext = pathinfo($filename, PATHINFO_EXTENSION);
-    if (empty($ext) && !empty($type)) {
+    $filename = sanitize_file_name($filename);  //remove any url encoding for spaces etc.
+    $filename = pathinfo($filename, PATHINFO_FILENAME); //Get just name to make sure we have no bad extensions
+    if (!empty($type)) {
         $pos = strpos($type,'/');  //try to get extension from mime type
         if ($pos) $filename .= '.'.substr($type,$pos+1); //add extension
     }

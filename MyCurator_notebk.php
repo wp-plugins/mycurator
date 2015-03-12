@@ -502,13 +502,13 @@ function mct_nb_addnotepg($notebk_id, $notes, $post_arr, $page) {
     mct_sl_deleteimage($thepost);
 }
 
-function mct_nb_traintodraft($thepost,$cat){
+function mct_nb_traintodraft($thepost,$cat,$stat='draft'){
     //Move Get It post from training to Draft
     $details = array();
     $details['ID'] = $thepost;
     $details['post_type'] = 'post';
-    $details['post_category'] = array($cat);
-    $details['post_status'] = 'draft';
+    $details['post_category'] = $cat;
+    $details['post_status'] = $stat;
     $details['edit_date'] = true;
     $details['post_date'] = '';
     $details['post_date_gmt'] = "0000-00-00 00:00:00";
