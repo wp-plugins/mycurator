@@ -12,7 +12,8 @@ MyCurator Content Curation Software Makes it Quick and Easy to Create Quality Co
 
 == Description ==
 
-**MyCurator saves you hours a day by finding content you can use**
+= MyCurator saves you hours a day by finding content you can use =
+
 * You customize the RSS, Twitter and Google Alert Sources you want to use
 * Articles are brought to you throughout the day from your Sources
 * Content is filtered for your keywords and other parameters
@@ -21,14 +22,16 @@ MyCurator Content Curation Software Makes it Quick and Easy to Create Quality Co
 * MyCurator curates content in any language, creating posts in the native language of your site
 * Quickly choose articles for curation, pop-up the full content in a readable page format to help your review
 
-**Easily compose curated posts starting with a click of the Make Live tag**
+= Easily compose curated posts starting with a click of the Make Live tag =
+
 * MyCurator pre-fills the post with an image, attribution link and an excerpt into the WordPress Editor
 * Choose your own excerpts by just clicking on paragraphs from the original full article
 * Click on images from the original article to add more or change the pre-filled picture
 * Customize the curation with your own insights and comments
 * Options to manage the pre-filled links, images and excerpts in a variety of formats
 
-**MyCurator supports a wide range of curation practices**
+= MyCurator supports a wide range of curation practices =
+
 * Our Get It bookmarklet allows you to curate content while you browse the web on your desktop, tablet or phone
 * Curate Video from YouTube and other video sources, with the video pre-embedded into your post
 * MyCurator Notebooks allow you to save multiple articles for a complex curation or an original writing project
