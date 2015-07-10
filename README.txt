@@ -42,7 +42,7 @@ MyCurator Content Curation Software Makes it Quick and Easy to Create Quality Co
 * Selective Auto-Post capability uses our AI classification to automatically post pre-filled curations 
 * Security settings for multiple curators to manage workflow and visibility of articles
 
-Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
+Find out more and view our Training Videos and Documentation at <a href="http://www.target-info.com/" >MyCurator</a>.
 
 MyCurator allows you to curate content for a Topic (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
 cloud services.  For those who need to curate a lot of different topics or for multiple sites, low priced monthly plans are 
