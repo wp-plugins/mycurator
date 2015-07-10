@@ -3,39 +3,43 @@ Contributors: mtilly
 Donate link: 
 Tags: content curation, content curation tools, content curation software, content curation plugin, content marketing, article writing, content writing, blog article
 Requires at least: 3.3
-Tested up to: 4.1
+Tested up to: 4.2
 Stable tag: 2.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-MyCurator Content Curation Software Makes it Easy to Build Quality Content for Your WordPress Site.
+MyCurator Content Curation Software Makes it Quick and Easy to Create Quality Content for Your WordPress Site.
 
 == Description ==
 
-MyCurator works tirelessly in the background delivering a pipeline of interesting, usable content to you throughout the day.  
-Quickly curate this content onto your site with great curation tools.  Our Get It Bookmarklet lets you curate content as you browse the web.
-Use our Notebooks to save the best articles and posts you find for use in your original articles or building complex content curation posts.
+**MyCurator saves you hours a day by finding content you can use**
+* You customize the RSS, Twitter and Google Alert Sources you want to use
+* Articles are brought to you throughout the day from your Sources
+* Content is filtered for your keywords and other parameters
+* Our Cloud AI module classifies articles based on their relevance to you after some simple training
+* The AI classification can weed out up to 90% of the spammy, off topic and irrelevant articles on the web
+* MyCurator curates content in any language, creating posts in the native language of your site
+* Quickly choose articles for curation, pop-up the full content in a readable page format to help your review
 
-MyCurator is powerful corporate level content curation software brought to you as a plugin.  It uses a cloud process to perform 
-intensive AI processing and article classification.  This allows you to train MyCurator to find only the best, most relevant articles 
-for your site, weeding out the bulk of off-topic, spammy, content on the web. 
+**Easily compose curated posts starting with a click of the Make Live tag**
+* MyCurator pre-fills the post with an image, attribution link and an excerpt into the WordPress Editor
+* Choose your own excerpts by just clicking on paragraphs from the original full article
+* Click on images from the original article to add more or change the pre-filled picture
+* Customize the curation with your own insights and comments
+* Options to manage the pre-filled links, images and excerpts in a variety of formats
+
+**MyCurator supports a wide range of curation practices**
+* Our Get It bookmarklet allows you to curate content while you browse the web on your desktop, tablet or phone
+* Curate Video from YouTube and other video sources, with the video pre-embedded into your post
+* MyCurator Notebooks allow you to save multiple articles for a complex curation or an original writing project
+* Curate several articles into a single curation just by tagging multiple articles
+* Curate articles to the Custom Post Types you've defined for your site
+* Bulk curation tools to handle curating many articles at once 
+* A Quick Post feature to post the pre-filled curations immediately to your site
+* Selective Auto-Post capability uses our AI classification to automatically post pre-filled curations 
+* Security settings for multiple curators to manage workflow and visibility of articles
 
 Find out more at <a href="http://www.target-info.com/" >MyCurator</a>.
-
-* Pro-actively finds the content you want, no need to search every time, inspiring you to regularly curate new posts.
-* The full text, attribution link and all images for each article are available in the WordPress post editor, just click on a paragraph, list, table or image and its inserted into your blog article immediately.
-* Notebooks let you research ideas and save related articles, both from MyCurator's automated discovery and your web explorations.
-* Notebooks are like Evernote, only integrated into your WordPress Editor.
-* Curate content to your custom post types
-* Customize content curation to your specific niche by choosing what sources to read and what to look for in each article
-* For even more content curation accuracy, simply train with thumbs up/down and weed out off-topic and spam articles
-* Get It Bookmarklet allows you to discover and curate content while browsing and add it to your training page for future curation.
-* Special Video content curation features to find and embed videos directly into curated posts.
-* Easily handle 100's of articles a day and multiple writers, categories and sites with Quick post and bulk content curation tools.
-* MyCurator curates content in any language, and all posts are in the native language of your site.
-* Works with any RSS source of articles including Google alerts, blogs, news feeds and Twitter searches (follows embedded links).
-* Source It Bookmarklet to easily capture RSS feeds.
-* Selective Auto-Post capability uses AI process to deliver highly targeted, quality articles to your community.
 
 MyCurator allows you to curate content for a Topic (equivalent to WordPress Categories) for free, but you will have to obtain an API Key to access the 
 cloud services.  For those who need to curate a lot of different topics or for multiple sites, low priced monthly plans are 
